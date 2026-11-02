@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { Award, Bell, BookOpen, ClipboardCheck, GraduationCap, LayoutDashboard, School, Table2, Users, Wallet } from 'lucide-react';
+import { Award, Bell, BookOpen, ClipboardCheck, GraduationCap, LayoutDashboard, Menu, School, Table2, Users, Wallet } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store';
 import { useNotificationsLive } from '@/features/notifications/hooks';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
@@ -44,10 +45,10 @@ const NAVIGATION_BY_ROLE = {
 function SchoolBadge({ name }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white">
-        <GraduationCap className="size-4" />
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white">
+        <GraduationCap className="size-[18px]" />
       </span>
-      <p className="truncate text-sm font-semibold">{name}</p>
+      <p className="truncate text-[22px] leading-none text-zinc-700">{name}</p>
     </div>
   );
 }
@@ -57,69 +58,80 @@ export function AppShell() {
   const role = useAuthStore((state) => state.user?.role);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const { pathname } = useLocation();
+  // Escritorio: menú expandido o reducido a íconos. Celular: menú superpuesto.
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useNotificationsLive();
+
+  useEffect(() => setMobileOpen(false), [pathname]);
 
   const navigation = NAVIGATION_BY_ROLE[role] ?? [];
   const isActive = ({ to, end, alsoActive }) =>
     (end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`)) || Boolean(alsoActive?.(pathname));
 
+  const toggleMenu = () => (window.matchMedia('(min-width: 768px)').matches ? setCollapsed((value) => !value) : setMobileOpen((value) => !value));
+
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
-        <div className="flex h-14 items-center justify-between gap-2 border-b border-zinc-200 pr-2 pl-4">
-          <SchoolBadge name={schoolName} />
-          <NotificationBell align="left" />
-        </div>
-
-        <nav className="flex-1 space-y-0.5 p-2">
-          {navigation.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={cn(
-                'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900',
-                isActive(item) && 'bg-zinc-100 font-medium text-zinc-900',
-              )}
-            >
-              <item.icon className="size-4" />
-              <span className="flex-1">{item.label}</span>
-              {item.to === NOTIFICATIONS_PATH && unreadCount > 0 && (
-                <span className="rounded-full bg-zinc-200 px-1.5 text-[11px] font-medium text-zinc-700 tabular-nums">{unreadCount}</span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-
-        <UserMenu />
-      </aside>
-
-      <main className="flex min-w-0 flex-1 flex-col">
-        {/* En celular la barra lateral se vuelve una barra superior con íconos; la campana reemplaza al enlace */}
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-zinc-200 bg-white px-4 md:hidden">
-          <SchoolBadge name={schoolName} />
-          <nav className="ml-auto flex items-center gap-0.5">
-            {navigation
-              .filter((item) => item.to !== NOTIFICATIONS_PATH)
-              .map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  aria-label={item.label}
-                  title={item.label}
-                  className={cn(
-                    'flex size-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900',
-                    isActive(item) && 'bg-zinc-100 text-zinc-900',
-                  )}
-                >
-                  <item.icon className="size-4" />
-                </NavLink>
-              ))}
-            <NotificationBell align="right" />
-          </nav>
+    <div className="flex h-full flex-col">
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-zinc-300 bg-white px-2 sm:px-4">
+        <button
+          type="button"
+          onClick={toggleMenu}
+          aria-label="Menú principal"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full text-zinc-600 transition-colors hover:bg-zinc-100"
+        >
+          <Menu className="size-5" />
+        </button>
+        <SchoolBadge name={schoolName} />
+        <div className="ml-auto flex items-center gap-1">
+          <NotificationBell align="right" />
           <UserMenu compact />
         </div>
-        <Outlet />
-      </main>
+      </header>
+
+      <div className="relative flex min-h-0 flex-1">
+        {mobileOpen && <div className="fixed inset-0 top-16 z-30 bg-zinc-900/30 md:hidden" onClick={() => setMobileOpen(false)} aria-hidden="true" />}
+
+        <aside
+          className={cn(
+            'z-40 shrink-0 overflow-y-auto border-r border-zinc-300 bg-white transition-[width,transform] duration-200',
+            'fixed top-16 bottom-0 left-0 w-72 md:static md:translate-x-0',
+            mobileOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full',
+            collapsed ? 'md:w-[72px]' : 'md:w-72',
+          )}
+        >
+          <nav className="space-y-0.5 py-2 pr-3">
+            {navigation.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  'flex h-12 items-center gap-5 rounded-r-full pr-4 pl-6 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100',
+                  isActive(item) && 'bg-brand-50 text-brand-700 hover:bg-brand-100',
+                )}
+              >
+                <span className="relative shrink-0">
+                  <item.icon className="size-5" />
+                  {collapsed && item.to === NOTIFICATIONS_PATH && unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 size-2 rounded-full bg-red-500 max-md:hidden" />
+                  )}
+                </span>
+                <span className={cn('flex-1 truncate', collapsed && 'md:hidden')}>{item.label}</span>
+                {item.to === NOTIFICATIONS_PATH && unreadCount > 0 && (
+                  <span className={cn('rounded-full bg-brand-600 px-2 text-[11px] font-medium text-white tabular-nums', collapsed && 'md:hidden')}>
+                    {unreadCount}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <Outlet />
+        </main>
+      </div>
 
       <NotificationToasts />
     </div>

@@ -28,8 +28,8 @@ function FilterTabs({ value, onChange, summary }) {
             aria-selected={active}
             onClick={() => onChange(filter.value)}
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
-              active ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              active ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
             )}
           >
             {filter.label}

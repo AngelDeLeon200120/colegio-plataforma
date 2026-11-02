@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Lock, MoreHorizontal, Paperclip } from 'lucide-react';
+import { ClipboardList, Lock, MoreHorizontal, Paperclip } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
@@ -111,7 +111,9 @@ export function ActivityRow({ activity, onEdit }) {
 
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-      <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: activity.course.color ?? '#a1a1aa' }} aria-hidden />
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: activity.course.color ?? "#1a73e8" }} aria-hidden>
+        <ClipboardList className="size-5" />
+      </span>
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-zinc-900">{activity.title}</p>
@@ -145,8 +147,8 @@ export function ActivityRow({ activity, onEdit }) {
           <Link
             to={`/activities/${activity.id}/review`}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors',
-              toReview ? 'bg-zinc-900 text-white hover:bg-zinc-800' : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50',
+              'inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors',
+              toReview ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border border-zinc-300 bg-white text-brand-700 hover:bg-brand-50',
             )}
           >
             {toReview ? `Revisar (${toReview})` : 'Ver entregas'}

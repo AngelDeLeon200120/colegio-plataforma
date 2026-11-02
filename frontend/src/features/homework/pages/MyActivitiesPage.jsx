@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { AlertTriangle, ChevronRight, Inbox } from 'lucide-react';
+import { AlertTriangle, ChevronRight, ClipboardList, Inbox } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 import { formatScore } from '@/lib/format';
@@ -21,7 +21,9 @@ function ActivityRow({ activity, studentQuery }) {
         to={`/my/activities/${activity.id}${studentQuery}`}
         className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-50"
       >
-        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: activity.subject.color ?? '#a1a1aa' }} aria-hidden />
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: activity.subject.color ?? "#1a73e8" }} aria-hidden>
+          <ClipboardList className="size-5" />
+        </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-zinc-900">{activity.title}</span>
           <span className="block truncate text-xs text-zinc-500">
@@ -61,7 +63,7 @@ export function MyActivitiesPage() {
     <div className="mx-auto w-full max-w-3xl overflow-y-auto px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight text-zinc-900">
+          <h1 className="text-2xl font-normal text-zinc-900">
             {isParent ? `Tareas de ${data?.student.firstName ?? '…'}` : 'Mis tareas'}
           </h1>
           <p className="mt-0.5 text-sm text-zinc-500">

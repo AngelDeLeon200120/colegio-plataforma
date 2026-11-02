@@ -106,7 +106,7 @@ export function ReportCardPage() {
       <div className="print-area space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold tracking-tight text-zinc-900">
+            <h1 className="text-2xl font-normal text-zinc-900">
               {isParent ? `Notas de ${data?.student.firstName ?? '…'}` : 'Mis notas'}
             </h1>
             {data && (
@@ -118,7 +118,7 @@ export function ReportCardPage() {
           <div className="flex flex-wrap items-center gap-2 print:hidden">
             <StudentSwitcher students={children} studentId={studentId} onChange={selectStudent} />
             {data && (
-              <div role="tablist" aria-label="Unidad" className="flex gap-1 rounded-lg bg-zinc-100 p-0.5">
+              <div role="tablist" aria-label="Unidad" className="flex flex-wrap gap-1.5">
                 {data.units.map((unit) => (
                   <button
                     key={unit.id}
@@ -127,8 +127,8 @@ export function ReportCardPage() {
                     aria-selected={unit.id === data.unit.id}
                     onClick={() => selectUnit(unit.id)}
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                      unit.id === data.unit.id ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-600 hover:text-zinc-900',
+                      'inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      unit.id === data.unit.id ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
                     )}
                   >
                     {unit.status === 'CLOSED' && <Lock className="size-3" />}

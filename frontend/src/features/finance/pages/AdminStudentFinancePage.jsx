@@ -33,7 +33,7 @@ export function AdminStudentFinancePage() {
         <>
           <header className="mt-3 mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-lg font-semibold tracking-tight text-zinc-900">
+              <h1 className="text-2xl font-normal text-zinc-900">
                 {data.student.firstName} {data.student.lastName}
               </h1>
               <p className="mt-0.5 text-sm text-zinc-500">

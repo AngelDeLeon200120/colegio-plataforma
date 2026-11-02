@@ -237,7 +237,7 @@ export function AcademicStructurePage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 overflow-y-auto px-4 py-6 sm:px-6">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Estructura académica</h1>
+        <h1 className="text-2xl font-normal text-zinc-900">Estructura académica</h1>
         <p className="mt-0.5 text-sm text-zinc-500">
           Ciclo {data.year.name} · {formatDate(data.year.startsOn)} al {formatDate(data.year.endsOn)}
         </p>

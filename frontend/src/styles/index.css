@@ -1,7 +1,32 @@
 @import "tailwindcss";
 
+/* Estilo inspirado en Material Design: Roboto, grises neutros y azul como color principal.
+   La escala "zinc" se redefine aquí, así todos los grises de la app cambian en un solo lugar. */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+
+  --color-zinc-50: #f8f9fa;
+  --color-zinc-100: #f1f3f4;
+  --color-zinc-200: #e3e5e8;
+  --color-zinc-300: #dadce0;
+  --color-zinc-400: #bdc1c6;
+  --color-zinc-500: #80868b;
+  --color-zinc-600: #5f6368;
+  --color-zinc-700: #444746;
+  --color-zinc-800: #3c4043;
+  --color-zinc-900: #1f1f1f;
+
+  --color-brand-50: #e8f0fe;
+  --color-brand-100: #d2e3fc;
+  --color-brand-200: #aecbfa;
+  --color-brand-300: #8ab4f8;
+  --color-brand-500: #4285f4;
+  --color-brand-600: #1a73e8;
+  --color-brand-700: #1967d2;
+  --color-brand-800: #185abc;
+
+  --shadow-card: 0 1px 2px 0 rgb(60 64 67 / 0.3), 0 1px 3px 1px rgb(60 64 67 / 0.15);
+  --shadow-card-hover: 0 1px 3px 0 rgb(60 64 67 / 0.3), 0 4px 8px 3px rgb(60 64 67 / 0.15);
 }
 
 @layer base {
@@ -12,8 +37,14 @@
   }
 
   body {
-    @apply bg-zinc-50 text-zinc-900 antialiased;
-    font-feature-settings: "cv11", "ss01";
+    @apply bg-white text-zinc-900 antialiased;
+  }
+
+  /* Encabezados con el peso medio de Material en lugar de negritas */
+  h1,
+  h2,
+  h3 {
+    @apply font-medium;
   }
 }
 

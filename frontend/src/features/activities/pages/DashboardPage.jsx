@@ -67,7 +67,7 @@ export function DashboardPage() {
     <div className="mx-auto w-full max-w-4xl overflow-y-auto px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight text-zinc-900">
+          <h1 className="text-2xl font-normal text-zinc-900">
             {greeting()}, {user?.firstName}
           </h1>
           <p className="mt-0.5 text-sm text-zinc-500">Esto es lo que tienes pendiente hoy.</p>

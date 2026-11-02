@@ -25,13 +25,13 @@ export function NotificationsPage() {
     <div className="mx-auto w-full max-w-2xl overflow-y-auto px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Notificaciones</h1>
+          <h1 className="text-2xl font-normal text-zinc-900">Notificaciones</h1>
           <p className="mt-0.5 text-sm text-zinc-500">
             {unreadCount ? `${unreadCount} sin leer` : 'Estás al día'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div role="tablist" aria-label="Filtro" className="flex gap-1 rounded-lg bg-zinc-100 p-0.5">
+          <div role="tablist" aria-label="Filtro" className="flex flex-wrap gap-1.5">
             {TABS.map((tab) => (
               <button
                 key={tab.label}
@@ -40,8 +40,8 @@ export function NotificationsPage() {
                 aria-selected={unreadOnly === tab.value}
                 onClick={() => setUnreadOnly(tab.value)}
                 className={cn(
-                  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                  unreadOnly === tab.value ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-600 hover:text-zinc-900',
+                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                  unreadOnly === tab.value ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
                 )}
               >
                 {tab.label}

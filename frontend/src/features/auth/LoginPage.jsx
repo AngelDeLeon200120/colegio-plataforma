@@ -93,7 +93,7 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="flex size-10 items-center justify-center rounded-lg bg-zinc-900 text-white shadow-sm">
+          <span className="flex size-10 items-center justify-center rounded-full bg-brand-600 text-white">
             <GraduationCap className="size-5" />
           </span>
           <h1 className="mt-4 text-xl font-semibold tracking-tight text-zinc-900">Inicia sesión</h1>

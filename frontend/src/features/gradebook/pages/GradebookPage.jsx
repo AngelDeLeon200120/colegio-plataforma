@@ -15,7 +15,7 @@ import { useGradeSheet } from '../useGradeSheet';
 
 function UnitTabs({ units, currentId, onChange }) {
   return (
-    <div role="tablist" aria-label="Unidad" className="flex gap-1 rounded-lg bg-zinc-100 p-0.5">
+    <div role="tablist" aria-label="Unidad" className="flex flex-wrap gap-1.5">
       {units.map((unit) => (
         <button
           key={unit.id}
@@ -24,8 +24,8 @@ function UnitTabs({ units, currentId, onChange }) {
           aria-selected={unit.id === currentId}
           onClick={() => onChange(unit.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors',
-            unit.id === currentId ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-600 hover:text-zinc-900',
+            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors',
+            unit.id === currentId ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
           )}
         >
           {unit.status === 'CLOSED' && <Lock className="size-3" aria-label="Cerrada" />}
@@ -159,7 +159,7 @@ export function GradebookPage() {
         </nav>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           {sheet ? (
-            <h1 className="text-lg font-semibold tracking-tight text-zinc-900">{sheet.course.name}</h1>
+            <h1 className="text-2xl font-normal text-zinc-900">{sheet.course.name}</h1>
           ) : (
             <Skeleton className="h-6 w-56" />
           )}

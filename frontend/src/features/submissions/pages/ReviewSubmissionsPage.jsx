@@ -44,7 +44,7 @@ function PageHeader({ activity, summary }) {
       </nav>
       <div className="mt-1 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold tracking-tight text-zinc-900">{activity.title}</h1>
+          <h1 className="truncate text-2xl font-normal text-zinc-900">{activity.title}</h1>
           <p className="mt-0.5 flex items-center gap-1.5 text-sm text-zinc-500">
             <CalendarClock className="size-3.5" />
             {overdue ? 'Venció' : 'Vence'} {formatDateTime(activity.dueAt)} · {activity.maxScore} puntos

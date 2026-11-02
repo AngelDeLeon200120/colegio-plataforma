@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-zinc-50 text-zinc-900 antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+/* Al imprimir (recibo, boleta) solo se ve el contenido de .print-area, sin la app alrededor.
+   Absoluto, no fijo: así un contenido largo continúa en las páginas siguientes. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 1.5rem;
+    background: white;
+  }
+  dialog::backdrop {
+    background: none;
+  }
+}

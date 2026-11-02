@@ -216,6 +216,20 @@ class ActivitiesRepository extends BaseRepository {
     return rows.map((row) => row.user_id);
   }
 
+  /** Familiares (con avisos activados) de los estudiantes inscritos en la sección del curso. */
+  async findGuardiansOfCourse(courseId) {
+    const rows = await this.query(
+      `SELECT gs.guardian_id, st.id AS student_id, st.first_name
+         FROM courses c
+         JOIN enrollments e        ON e.school_id = c.school_id AND e.section_id = c.section_id AND e.status = 'ACTIVE'
+         JOIN students st          ON st.school_id = e.school_id AND st.id = e.student_id
+         JOIN guardian_students gs ON gs.school_id = st.school_id AND gs.student_id = st.id AND gs.receives_notifications = 1
+        WHERE c.school_id = ? AND c.id = ?`,
+      [this.schoolId, courseId],
+    );
+    return rows.map((row) => ({ guardianId: row.guardian_id, studentId: row.student_id, studentName: row.first_name }));
+  }
+
   async deleteDraft(activityId) {
     const result = await this.query(`DELETE FROM activities WHERE school_id = ? AND id = ? AND status = 'DRAFT'`, [this.schoolId, activityId]);
     return result.affectedRows === 1;

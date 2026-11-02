@@ -38,22 +38,37 @@ async function publishInTransaction(connection, afterCommit, activity) {
   const created = await repo.createPendingSubmissions(activity.id, activity.course.id, activity.dueAt);
 
   const studentIds = await repo.findStudentUserIds(activity.course.id);
+  const guardians = await repo.findGuardiansOfCourse(activity.course.id);
   const timezone = await academicRepository.findSchoolTimezone();
   const due = activity.dueAt ? ` · vence el ${formatLocalDateTime(activity.dueAt, timezone)}` : '';
+  const base = { type: 'ACTIVITY_PUBLISHED', priority: 'NORMAL', entityType: 'activity', entityId: activity.id };
+
   const notifications = await notificationsService.createForUsers(connection, studentIds, {
-    type: 'ACTIVITY_PUBLISHED',
-    priority: 'NORMAL',
+    ...base,
     title: `Nueva actividad: ${activity.title}`.slice(0, 200),
     body: `${activity.course.subject}${due}`,
-    entityType: 'activity',
-    entityId: activity.id,
     actionUrl: `/my/activities/${activity.id}`,
     dedupeKey: `published:${activity.id}`,
   });
 
+  // Familias: un aviso por cada hijo o hija en la sección (con su nombre y enlace a su vista)
+  for (const { guardianId, studentId, studentName } of guardians) {
+    notifications.push(
+      ...(await notificationsService.createForUsers(connection, [guardianId], {
+        ...base,
+        studentId,
+        title: `Nueva actividad para ${studentName}: ${activity.title}`.slice(0, 200),
+        body: `${activity.course.subject}${due}`,
+        actionUrl: `/my/activities/${activity.id}?student=${studentId}`,
+        dedupeKey: `published:${activity.id}:${studentId}`,
+      })),
+    );
+  }
+
+  const guardianIds = [...new Set(guardians.map((guardian) => guardian.guardianId))];
   afterCommit(() => {
     notificationsService.publish(notifications);
-    emitToUsers(studentIds, 'activity:published', { activityId: activity.id, courseId: activity.course.id });
+    emitToUsers([...studentIds, ...guardianIds], 'activity:published', { activityId: activity.id, courseId: activity.course.id });
   });
   return created;
 }

@@ -26,4 +26,5 @@ export const useCreateActivity = () => useActivityMutation(({ courseId, ...input
 export const useUpdateActivity = () => useActivityMutation(({ activityId, ...body }) => activitiesApi.update(activityId, body));
 export const usePublishActivity = () => useActivityMutation(activitiesApi.publish);
 export const useCloseActivity = () => useActivityMutation(activitiesApi.close);
+export const useReopenActivity = () => useActivityMutation(activitiesApi.reopen);
 export const useDeleteActivity = () => useActivityMutation(activitiesApi.remove);

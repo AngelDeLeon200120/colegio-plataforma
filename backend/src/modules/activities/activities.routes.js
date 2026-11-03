@@ -39,6 +39,10 @@ activitiesRouter.post('/activities/:activityId/close', staff, validate({ params:
   res.json({ data: await activitiesService.close(req.user, req.valid.params.activityId) });
 });
 
+activitiesRouter.post('/activities/:activityId/reopen', staff, validate({ params: activityParams }), async (req, res) => {
+  res.json({ data: await activitiesService.reopen(req.user, req.valid.params.activityId) });
+});
+
 activitiesRouter.delete('/activities/:activityId', staff, validate({ params: activityParams }), async (req, res) => {
   await activitiesService.removeDraft(req.user, req.valid.params.activityId);
   res.status(204).end();

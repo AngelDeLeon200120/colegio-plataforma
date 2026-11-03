@@ -181,6 +181,17 @@ class ActivitiesRepository extends BaseRepository {
     );
   }
 
+  /** Al reabrir: las pendientes vuelven a su fecha de entrega y las rechazadas retoman el ciclo ya. */
+  async resumeReminders(activityId) {
+    await this.query(
+      `UPDATE submissions s
+         JOIN activities a ON a.school_id = s.school_id AND a.id = s.activity_id
+          SET s.next_reminder_at = IF(s.status = 'REJECTED', UTC_TIMESTAMP(), a.due_at), s.reminder_count = 0
+        WHERE s.school_id = ? AND s.activity_id = ? AND s.status IN ('PENDING', 'REJECTED') AND s.next_reminder_at IS NULL`,
+      [this.schoolId, activityId],
+    );
+  }
+
   async setStatus(activityId, from, to) {
     const result = await this.query(`UPDATE activities SET status = ? WHERE school_id = ? AND id = ? AND status = ?`, [
       to,

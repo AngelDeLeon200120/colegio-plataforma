@@ -22,5 +22,6 @@ export const activitiesApi = {
   update: (activityId, body) => api(`/activities/${activityId}`, { method: 'PATCH', body }),
   publish: (activityId) => api(`/activities/${activityId}/publish`, { method: 'POST' }),
   close: (activityId) => api(`/activities/${activityId}/close`, { method: 'POST' }),
+  reopen: (activityId) => api(`/activities/${activityId}/reopen`, { method: 'POST' }),
   remove: (activityId) => api(`/activities/${activityId}`, { method: 'DELETE' }),
 };

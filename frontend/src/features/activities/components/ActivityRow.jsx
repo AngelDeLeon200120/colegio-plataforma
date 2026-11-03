@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/format';
 import { ACTIVITY_TYPES } from '@/features/homework/model';
-import { useCloseActivity, useDeleteActivity, usePublishActivity } from '../hooks';
+import { useCloseActivity, useDeleteActivity, usePublishActivity, useReopenActivity } from '../hooks';
 
 export const STATUS = {
   DRAFT: { label: 'Borrador', tone: 'neutral' },
@@ -48,7 +48,8 @@ function ActionsMenu({ activity, onEdit }) {
   const publish = usePublishActivity();
   const close = useCloseActivity();
   const remove = useDeleteActivity();
-  const error = publish.error ?? close.error ?? remove.error;
+  const reopen = useReopenActivity();
+  const error = publish.error ?? close.error ?? reopen.error ?? remove.error;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -77,11 +78,9 @@ function ActionsMenu({ activity, onEdit }) {
       </Button>
       {open && (
         <div role="menu" className="absolute top-full right-0 z-20 mt-1 w-56 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg">
-          {activity.status !== 'CLOSED' && (
-            <button type="button" role="menuitem" className={item} onClick={() => (setOpen(false), onEdit(activity))}>
-              Editar
-            </button>
-          )}
+          <button type="button" role="menuitem" className={item} onClick={() => (setOpen(false), onEdit(activity))}>
+            Editar
+          </button>
           {activity.status === 'DRAFT' && (
             <button type="button" role="menuitem" className={cn(item, 'font-medium text-emerald-700')} onClick={() => run('publish', publish)}>
               {confirm === 'publish' ? 'Confirmar: avisar a la sección' : 'Publicar'}
@@ -90,6 +89,11 @@ function ActionsMenu({ activity, onEdit }) {
           {activity.status === 'PUBLISHED' && (
             <button type="button" role="menuitem" className={item} onClick={() => run('close', close)}>
               {confirm === 'close' ? 'Confirmar: ya no recibirá entregas' : 'Cerrar entregas'}
+            </button>
+          )}
+          {activity.status === 'CLOSED' && (
+            <button type="button" role="menuitem" className={item} onClick={() => run('reopen', reopen)}>
+              {confirm === 'reopen' ? 'Confirmar: vuelve a recibir entregas' : 'Reabrir entregas'}
             </button>
           )}
           {activity.status === 'DRAFT' && (

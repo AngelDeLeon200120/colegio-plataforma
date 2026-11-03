@@ -141,7 +141,6 @@ export const activitiesService = {
 
   async update(user, activityId, changes) {
     const activity = await loadActivity(user, activityId);
-    if (activity.status === 'CLOSED') throw AppError.unprocessable('ACTIVITY_CLOSED', 'La actividad está cerrada');
 
     await withTransaction(async (connection) => {
       const repo = activitiesRepository.withConnection(connection);
@@ -165,6 +164,20 @@ export const activitiesService = {
       throw AppError.unprocessable('INVALID_TRANSITION', 'Solo se cierran actividades publicadas');
     }
     return { id: activity.id, status: 'CLOSED' };
+  },
+
+  /** Reabrir: vuelve a recibir entregas y retoma los recordatorios que el job apagó al cerrarla. */
+  async reopen(user, activityId) {
+    const activity = await loadActivity(user, activityId);
+    assertUnitOpen(activity.unit);
+    await withTransaction(async (connection) => {
+      const repo = activitiesRepository.withConnection(connection);
+      if (!(await repo.setStatus(activity.id, 'CLOSED', 'PUBLISHED'))) {
+        throw AppError.unprocessable('INVALID_TRANSITION', 'Solo se reabren actividades cerradas');
+      }
+      await repo.resumeReminders(activity.id);
+    });
+    return { id: activity.id, status: 'PUBLISHED' };
   },
 
   async removeDraft(user, activityId) {

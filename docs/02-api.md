@@ -160,6 +160,7 @@ o `DISCARDED`. Al aplicar se revalida todo; si la hoja cambió desde la validaci
 | PATCH | `/activities/:id` | T* | `{ title, description, dueAt, allowLate, maxScore }`. Si cambia el plazo de una publicada, se mueven los recordatorios de lo pendiente |
 | POST | `/activities/:id/publish` | T* | `DRAFT → PUBLISHED`; crea `submissions PENDING` por inscrito y notifica a los estudiantes (`ACTIVITY_PUBLISHED`) |
 | POST | `/activities/:id/close` | T* | `PUBLISHED → CLOSED`: no acepta entregas y el job apaga sus recordatorios |
+| POST | `/activities/:id/reopen` | T* | `CLOSED → PUBLISHED`: vuelve a recibir entregas; las pendientes retoman sus recordatorios desde la fecha de entrega y las rechazadas de inmediato. `422 UNIT_CLOSED` si la unidad está cerrada |
 | DELETE | `/activities/:id` | T* | Solo borradores (las publicadas se cierran) |
 
 La vista del estudiante y la familia está en 2.6 (`/me/activities`).

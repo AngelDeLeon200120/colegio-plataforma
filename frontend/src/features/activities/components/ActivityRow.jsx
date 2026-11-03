@@ -96,9 +96,15 @@ function ActionsMenu({ activity, onEdit }) {
               {confirm === 'reopen' ? 'Confirmar: vuelve a recibir entregas' : 'Reabrir entregas'}
             </button>
           )}
-          {activity.status === 'DRAFT' && (
+          {(activity.status === 'DRAFT' || activity.status === 'CLOSED') && (
             <button type="button" role="menuitem" className={cn(item, 'text-red-600')} onClick={() => run('remove', remove)}>
-              {confirm === 'remove' ? 'Confirmar eliminación' : 'Eliminar borrador'}
+              {confirm === 'remove'
+                ? activity.status === 'CLOSED'
+                  ? 'Confirmar: deja de verse para todos'
+                  : 'Confirmar eliminación'
+                : activity.status === 'CLOSED'
+                  ? 'Eliminar actividad'
+                  : 'Eliminar borrador'}
             </button>
           )}
           {error && <p className="px-2.5 py-1.5 text-xs text-red-600">{error.message}</p>}

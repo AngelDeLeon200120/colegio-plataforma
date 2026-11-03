@@ -245,6 +245,14 @@ class ActivitiesRepository extends BaseRepository {
     const result = await this.query(`DELETE FROM activities WHERE school_id = ? AND id = ? AND status = 'DRAFT'`, [this.schoolId, activityId]);
     return result.affectedRows === 1;
   }
+
+  async softDeleteClosed(activityId) {
+    const result = await this.query(
+      `UPDATE activities SET deleted_at = UTC_TIMESTAMP() WHERE school_id = ? AND id = ? AND status = 'CLOSED' AND deleted_at IS NULL`,
+      [this.schoolId, activityId],
+    );
+    return result.affectedRows === 1;
+  }
 }
 
 export const activitiesRepository = new ActivitiesRepository();

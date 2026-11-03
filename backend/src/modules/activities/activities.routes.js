@@ -44,6 +44,6 @@ activitiesRouter.post('/activities/:activityId/reopen', staff, validate({ params
 });
 
 activitiesRouter.delete('/activities/:activityId', staff, validate({ params: activityParams }), async (req, res) => {
-  await activitiesService.removeDraft(req.user, req.valid.params.activityId);
+  await activitiesService.remove(req.user, req.valid.params.activityId);
   res.status(204).end();
 });

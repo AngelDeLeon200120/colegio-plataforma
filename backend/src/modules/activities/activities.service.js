@@ -180,10 +180,15 @@ export const activitiesService = {
     return { id: activity.id, status: 'PUBLISHED' };
   },
 
-  async removeDraft(user, activityId) {
+  /**
+   * Eliminar: un borrador se borra del todo; una cerrada se oculta (borrado lógico) para no perder
+   * entregas ni notas ya puestas. Una publicada primero se cierra.
+   */
+  async remove(user, activityId) {
     const activity = await loadActivity(user, activityId);
-    if (!(await activitiesRepository.deleteDraft(activity.id))) {
-      throw AppError.unprocessable('INVALID_TRANSITION', 'Solo se eliminan borradores; una actividad publicada se cierra');
+    const removed = activity.status === 'CLOSED' ? await activitiesRepository.softDeleteClosed(activity.id) : await activitiesRepository.deleteDraft(activity.id);
+    if (!removed) {
+      throw AppError.unprocessable('INVALID_TRANSITION', 'Solo se eliminan borradores y actividades cerradas; una publicada primero se cierra');
     }
   },
 };

@@ -95,7 +95,7 @@ class SubmissionsRepository extends BaseRepository {
          JOIN activities a ON a.school_id = s.school_id AND a.id = s.activity_id
          JOIN courses c    ON c.school_id = a.school_id AND c.id = a.course_id
          JOIN students st  ON st.school_id = s.school_id AND st.id = s.student_id
-        WHERE s.school_id = ? AND s.id = ?
+        WHERE s.school_id = ? AND s.id = ? AND a.deleted_at IS NULL
         ${forUpdate ? 'FOR UPDATE OF s' : ''}`,
       [this.schoolId, submissionId],
     );

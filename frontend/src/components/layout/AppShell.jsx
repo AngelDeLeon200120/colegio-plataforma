@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { Award, Bell, BookOpen, ClipboardCheck, GraduationCap, LayoutDashboard, Menu, School, Table2, Users, Wallet } from 'lucide-react';
+import { Award, Bell, BookOpen, ClipboardCheck, GraduationCap, LayoutDashboard, Menu, MessageSquare, School, Table2, Users, Wallet } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store';
+import { useMessagesLive, useUnreadMessages } from '@/features/messages/hooks';
 import { useNotificationsLive } from '@/features/notifications/hooks';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { NotificationToasts } from '@/features/notifications/NotificationToasts';
@@ -10,6 +11,8 @@ import { cn } from '@/lib/cn';
 import { UserMenu } from './UserMenu';
 
 const NOTIFICATIONS_PATH = '/notifications';
+const MESSAGES_PATH = '/messages';
+const messagesItem = { to: MESSAGES_PATH, label: 'Mensajes', icon: MessageSquare };
 
 const staffNavigation = [
   { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
@@ -17,27 +20,30 @@ const staffNavigation = [
   { to: '/activities', label: 'Actividades', icon: ClipboardCheck },
   // La hoja de un curso vive en /courses/:id/gradebook
   { to: '/gradebook', label: 'Cuadro de notas', icon: Table2, alsoActive: (path) => path.endsWith('/gradebook') },
+  messagesItem,
   { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
 ];
 
 const NAVIGATION_BY_ROLE = {
   ADMIN: [
-    ...staffNavigation.slice(0, -1),
+    ...staffNavigation.slice(0, -2),
     { to: '/admin/people', label: 'Personas', icon: Users },
     { to: '/admin/academic', label: 'Estructura académica', icon: School },
     { to: '/admin/finance', label: 'Finanzas', icon: Wallet },
-    staffNavigation.at(-1),
+    ...staffNavigation.slice(-2),
   ],
   TEACHER: staffNavigation,
   STUDENT: [
     { to: '/my/activities', label: 'Mis tareas', icon: ClipboardCheck },
     { to: '/my/grades', label: 'Mis notas', icon: Award },
+    messagesItem,
     { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
   ],
   PARENT: [
     { to: '/my/activities', label: 'Tareas', icon: ClipboardCheck },
     { to: '/my/grades', label: 'Notas', icon: Award },
     { to: '/finance', label: 'Pagos', icon: Wallet },
+    messagesItem,
     { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
   ],
 };
@@ -62,6 +68,9 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   useNotificationsLive();
+  useMessagesLive();
+  const { data: unreadMessages = 0 } = useUnreadMessages();
+  const badges = { [NOTIFICATIONS_PATH]: unreadCount, [MESSAGES_PATH]: unreadMessages };
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -113,14 +122,14 @@ export function AppShell() {
               >
                 <span className="relative shrink-0">
                   <item.icon className="size-5" />
-                  {collapsed && item.to === NOTIFICATIONS_PATH && unreadCount > 0 && (
+                  {collapsed && badges[item.to] > 0 && (
                     <span className="absolute -top-1 -right-1 size-2 rounded-full bg-red-500 max-md:hidden" />
                   )}
                 </span>
                 <span className={cn('flex-1 truncate', collapsed && 'md:hidden')}>{item.label}</span>
-                {item.to === NOTIFICATIONS_PATH && unreadCount > 0 && (
+                {badges[item.to] > 0 && (
                   <span className={cn('rounded-full bg-brand-600 px-2 text-[11px] font-medium text-white tabular-nums', collapsed && 'md:hidden')}>
-                    {unreadCount}
+                    {badges[item.to]}
                   </span>
                 )}
               </NavLink>

@@ -215,6 +215,25 @@ Se valida la firma real del archivo (magic bytes), no solo la extensión.
 Al reconectar el socket, el cliente vuelve a pedir la primera página y el contador:
 así recupera lo que llegó sin conexión.
 
+### 2.8b Mensajes
+
+Hilos con asunto entre familias, estudiantes y el personal. Asuntos: `TAREAS` y `AUSENCIA`, con motivo
+`LLEGA_TARDE`, `SIN_UNIFORME`, `VACACIONES`, `FALLECIMIENTO` o `ENFERMEDAD`.
+
+- **Sobre un estudiante** (`scope: STUDENT`): lo ven el estudiante, sus familias, los docentes de su sección y la administración; todos responden.
+- **Aviso a la sección** (`scope: SECTION`): solo lo envía el personal (docente de la sección o administración); lo leen estudiantes y familias, y solo el personal responde.
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/messages/threads?topic=&reason=` | todos | Bandeja (máx. 200, más recientes primero) → `{ threads, unreadCount }`. Cada hilo trae `unread` y el último mensaje |
+| GET | `/messages/unread-count` | todos | `{ count }` de hilos con mensajes ajenos sin leer (contador del menú) |
+| GET | `/messages/recipients` | todos | A quién puede escribir: personal → `{ canMessageSection: true, sections, students }`; familia y estudiante → sus estudiantes |
+| POST | `/messages/threads` | todos | `{ scope, studentId \| sectionId, topic, reason?, subject, body }`. `reason` es obligatorio con `AUSENCIA`. Estudiante ajeno o sin inscripción activa → `404`; familia o estudiante con `SECTION` → `403` |
+| GET | `/messages/threads/:id` | quien lo ve | `{ thread (con canReply), messages }`. Lo marca leído y emite `message:read` |
+| POST | `/messages/threads/:id/messages` | quien lo ve | `{ body }`. En un aviso a la sección, solo el personal (`403` para los demás) |
+
+Cada mensaje crea una notificación `MESSAGE` para quienes ven el hilo (menos el autor) y emite `message:new`.
+
 ### 2.9 Finanzas
 
 | Método | Ruta | Roles | Descripción |
@@ -296,6 +315,8 @@ Todos los eventos servidor → cliente comparten la misma forma:
 | `gradebook:cells_updated` | `course:*:staff` | `{ courseId, unitId, cells[], updatedBy }` | Actualiza celdas en vivo (el cliente ignora las suyas y las que tiene editadas sin guardar) |
 | `gradebook:items_changed` | `course:*:staff` | `{ courseId, unitId, updatedBy }` | Recarga columnas (creadas, editadas o borradas) |
 | `unit:status_changed` | `school:` | `{ unitId, status }` | Refresca contenido visible / bloquea la hoja |
+| `message:new` | `user:` de quienes ven el hilo (y el autor) | `{ threadId, messageId }` | Refresca bandeja, hilo abierto y contador |
+| `message:read` | `user:` | `{ threadId }` | Sincroniza el contador de mensajes entre pestañas |
 | `session:revoked` | `user:` | `{ reason }` | Cierra sesión en el cliente |
 
 ### 3.4 Cliente → servidor (con ack)
@@ -337,10 +358,11 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 | Cargo vence en 5 días | Cron diario | Encargado financiero | `PAYMENT_DUE_SOON` | NORMAL |
 | Cargo vencido | Cron diario (pasa a `OVERDUE`) | Encargado financiero | `PAYMENT_OVERDUE` | HIGH |
 | Pago registrado | `POST /payments` | Encargado financiero | `PAYMENT_RECEIVED` | NORMAL |
+| Mensaje nuevo o respuesta | `POST /messages/…` | Quienes ven el hilo, menos el autor | `MESSAGE` | NORMAL (HIGH si es por fallecimiento) |
 
 `dedupe_key` por regla, para que reintentar un job no duplique:
 `{overdue|correction|missed}:{submissionId}:{n.º de aviso}`, `dueSoon:{submissionId}:{dueAt}`,
-`pay-due:{chargeId}:{fecha}`.
+`pay-due:{chargeId}:{fecha}`, `message:{messageId}`.
 
 ## 5. Jobs programados
 

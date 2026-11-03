@@ -26,6 +26,12 @@ mysql -u root -p < database/schema.sql
 mysql -u root -p < database/seeds/dev-seed.sql
 ```
 
+Si tu base es anterior a la sección de Mensajes, aplica solo la migración:
+
+```bash
+mysql -u root -p colegio_saas < database/migrations/001_mensajes.sql
+```
+
 Para desarrollo crea un usuario propio en lugar de usar `root`:
 
 ```sql

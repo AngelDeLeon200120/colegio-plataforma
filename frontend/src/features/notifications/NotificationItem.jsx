@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Inbox,
+  MessageSquare,
   RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -19,6 +20,7 @@ const LOOK = {
   ACTIVITY_OVERDUE: { icon: Clock, className: 'bg-red-50 text-red-600' },
   ACTIVITY_MISSED: { icon: AlertOctagon, className: 'bg-red-50 text-red-600' },
   ACTIVITY_DUE_SOON: { icon: CalendarClock, className: 'bg-violet-50 text-violet-600' },
+  MESSAGE: { icon: MessageSquare, className: 'bg-brand-50 text-brand-700' },
 };
 const DEFAULT_LOOK = { icon: Bell, className: 'bg-zinc-100 text-zinc-500' };
 

@@ -15,6 +15,7 @@ import { GradebookIndexPage } from '@/features/gradebook/pages/GradebookIndexPag
 import { GradebookPage } from '@/features/gradebook/pages/GradebookPage';
 import { MyActivitiesPage } from '@/features/homework/pages/MyActivitiesPage';
 import { MyActivityPage } from '@/features/homework/pages/MyActivityPage';
+import { MessagesPage } from '@/features/messages/MessagesPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
 import { ReportCardPage } from '@/features/reportcard/ReportCardPage';
 import { ReviewSubmissionsPage } from '@/features/submissions/pages/ReviewSubmissionsPage';
@@ -42,6 +43,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <HomeRedirect /> },
           { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'messages', element: <MessagesPage /> },
+          { path: 'messages/:threadId', element: <MessagesPage /> },
           {
             element: <RequireAuth roles={['TEACHER', 'ADMIN']} />,
             children: [

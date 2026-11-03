@@ -10,6 +10,7 @@ import { filesRouter, publicFilesRouter } from './modules/files/files.routes.js'
 import { financeRouter } from './modules/finance/finance.routes.js';
 import { gradebookRouter } from './modules/gradebook/gradebook.routes.js';
 import { homeworkRouter } from './modules/homework/homework.routes.js';
+import { messagesRouter } from './modules/messages/messages.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { reportCardRouter } from './modules/reportcard/reportcard.routes.js';
 import { submissionsRouter } from './modules/submissions/submissions.routes.js';
@@ -31,6 +32,7 @@ apiRouter.use(notificationsRouter);
 apiRouter.use(submissionsRouter);
 apiRouter.use(activitiesRouter);
 apiRouter.use(homeworkRouter);
+apiRouter.use(messagesRouter);
 apiRouter.use(reportCardRouter);
 apiRouter.use(gradebookRouter);
 apiRouter.use(financeRouter);

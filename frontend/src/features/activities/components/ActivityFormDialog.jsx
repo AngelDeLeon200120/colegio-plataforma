@@ -29,7 +29,9 @@ function defaultDue() {
  */
 export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose }) {
   const editing = Boolean(activity);
-  const [courseId, setCourseId] = useState(String(activity?.course.id ?? defaultCourseId ?? courses[0]?.id ?? ''));
+  const [selectedCourseId, setCourseId] = useState(String(activity?.course.id ?? defaultCourseId ?? courses[0]?.id ?? ''));
+  // Si el diálogo se abrió antes de que cargaran los cursos, se toma el primero cuando llegan
+  const courseId = selectedCourseId || String(courses[0]?.id ?? '');
   const [title, setTitle] = useState(activity?.title ?? '');
   const [type, setType] = useState(activity?.type ?? 'TASK');
   const [description, setDescription] = useState(activity?.description ?? '');
@@ -40,6 +42,7 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
   const [gradeWeight, setGradeWeight] = useState('');
   const [files, setFiles] = useState([]);
   const [fileProblem, setFileProblem] = useState(null);
+  const [showProblems, setShowProblems] = useState(false);
   const fileInput = useRef(null);
   const ids = { course: useId(), title: useId(), type: useId(), description: useId(), due: useId(), max: useId(), late: useId() };
 
@@ -50,7 +53,16 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
   const maxScoreValue = maxScore.trim() === '' ? null : Number(maxScore.replace(',', '.'));
   const weightValue = Number(gradeWeight.replace(',', '.'));
   const gradebookValid = !inGradebook || (maxScoreValue > 0 && gradeWeight.trim() !== '' && weightValue >= 0 && weightValue <= 100);
-  const valid = title.trim().length >= 3 && courseId && (maxScoreValue === null || maxScoreValue > 0) && gradebookValid;
+  const problems = [
+    !courseId && { field: ids.course, message: 'Elige un curso.' },
+    title.trim().length < 3 && { field: ids.title, message: 'El título debe tener al menos 3 caracteres.' },
+    !(maxScoreValue === null || maxScoreValue > 0) && { field: ids.max, message: 'Los puntos deben ser un número mayor que 0.' },
+    !gradebookValid && {
+      field: maxScoreValue > 0 ? `${ids.max}-weight` : ids.max,
+      message: maxScoreValue > 0 ? 'El peso en la unidad debe estar entre 0 y 100 %.' : 'Para sumar al cuadro de notas, indica los puntos.',
+    },
+  ].filter(Boolean);
+  const valid = problems.length === 0;
   const dueIso = dueAt ? new Date(dueAt).toISOString() : null;
 
   const addFiles = (list) => {
@@ -68,7 +80,14 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
   };
 
   const save = async (publish) => {
-    if (!valid) return;
+    if (!valid) {
+      // En vez de un botón apagado sin explicación, se dice qué falta y se lleva al campo
+      setShowProblems(true);
+      const field = document.getElementById(problems[0].field);
+      field?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      field?.focus({ preventScroll: true });
+      return;
+    }
     try {
       if (editing) {
         await update.mutateAsync({
@@ -95,9 +114,16 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
       }
       onClose();
     } catch {
-      // el error se muestra desde la mutación
+      // el error se muestra desde la mutación, arriba del formulario: se lleva a la vista
+      requestAnimationFrame(() => document.getElementById(`${ids.title}-error`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
     }
   };
+
+  const problemNote = showProblems && !valid && (
+    <p role="alert" className="mr-auto flex items-center gap-1.5 self-center text-xs text-red-600">
+      <AlertCircle className="size-3.5 shrink-0" /> {problems[0].message}
+    </p>
+  );
 
   return (
     <Dialog
@@ -112,16 +138,18 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
             <Button onClick={onClose} disabled={mutation.isPending}>
               Cancelar
             </Button>
-            <Button variant="primary" onClick={() => save(false)} loading={mutation.isPending} disabled={!valid}>
+            {problemNote}
+            <Button variant="primary" onClick={() => save(false)} loading={mutation.isPending}>
               Guardar cambios
             </Button>
           </>
         ) : (
           <>
-            <Button onClick={() => save(false)} disabled={!valid || mutation.isPending}>
+            {problemNote}
+            <Button onClick={() => save(false)} disabled={mutation.isPending}>
               Guardar borrador
             </Button>
-            <Button variant="primary" onClick={() => save(true)} loading={mutation.isPending} disabled={!valid}>
+            <Button variant="primary" onClick={() => save(true)} loading={mutation.isPending}>
               Publicar
             </Button>
           </>
@@ -130,7 +158,7 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
     >
       <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
         {mutation.error && (
-          <p role="alert" className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
+          <p id={`${ids.title}-error`} role="alert" className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
             <AlertCircle className="mt-0.5 size-4 shrink-0" /> {mutation.error.message}
           </p>
         )}

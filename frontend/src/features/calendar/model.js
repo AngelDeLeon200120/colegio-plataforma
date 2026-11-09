@@ -13,10 +13,9 @@ export const MEETING_COLOR = '#7c3aed';
 export const ACTIVITY_COLOR = '#475569';
 
 export const VIEWS = [
-  { id: 'day', label: 'Día', days: 1 },
-  { id: 'workweek', label: 'Semana laboral', days: 5 },
-  { id: 'week', label: 'Semana', days: 7 },
   { id: 'month', label: 'Mes', days: 42 },
+  { id: 'week', label: 'Semana', days: 7 },
+  { id: 'day', label: 'Día', days: 1 },
 ];
 
 // Día completo (las entregas suelen vencer a las 23:59); la vista abre desplazada a las 7:00
@@ -51,9 +50,7 @@ export function visibleRange(view, anchor) {
     const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     return { start: startOfWeek(first), days: 42 };
   }
-  // Semana laboral vista en sábado o domingo: la semana que viene (la que termina ya pasó)
-  if (view === 'workweek' && [0, 6].includes(anchor.getDay())) return { start: startOfWeek(addDays(anchor, 7)), days: 5 };
-  return { start: startOfWeek(anchor), days: view === 'workweek' ? 5 : 7 };
+  return { start: startOfWeek(anchor), days: 7 };
 }
 
 export function shiftAnchor(view, anchor, direction) {

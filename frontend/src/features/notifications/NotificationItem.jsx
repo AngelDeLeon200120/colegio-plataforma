@@ -3,6 +3,7 @@ import {
   Bell,
   BellRing,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Clock,
   Inbox,
@@ -27,6 +28,7 @@ const LOOK = {
   MESSAGE: { icon: MessageSquare, className: 'bg-brand-50 text-brand-700' },
   MEETING: { icon: Video, className: 'bg-violet-50 text-violet-600' },
   POST: { icon: Megaphone, className: 'bg-amber-50 text-amber-700' },
+  EVENT: { icon: CalendarDays, className: 'bg-sky-50 text-sky-700' },
   POST_REACTION: { icon: ThumbsUp, className: 'bg-brand-50 text-brand-700' },
   POST_COMMENT: { icon: MessageCircle, className: 'bg-emerald-50 text-emerald-600' },
 };

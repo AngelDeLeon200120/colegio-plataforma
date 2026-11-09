@@ -267,6 +267,8 @@ Una publicación nueva crea una notificación `POST` para toda la comunidad acti
 | POST | `/calendar/events` | A | `{ title, category, startsAt, endsAt, allDay?, location?, sectionId?, description? }` |
 | PATCH · DELETE | `/calendar/events/:id` | A | Edita · borrado lógico |
 
+Crear un evento, cambiarle fecha, hora o sección, o cancelarlo (si aún no pasó) crea una notificación `EVENT` para todo el colegio o, si es de una sección, para sus estudiantes, familias, docentes y la administración. Corregir solo el texto no avisa. El enlace `/calendar?event={id}&date=AAAA-MM-DD` abre el evento en su semana.
+
 ### 2.9 Finanzas
 
 | Método | Ruta | Roles | Descripción |
@@ -398,6 +400,7 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 | Publicación nueva en Inicio | `POST /feed/posts` | Todos los usuarios activos, menos quien publica | `POST` | NORMAL (HIGH si está fijada) |
 | "Me gusta" en una publicación | `PUT /feed/posts/:id/reaction` | Quien publicó (una vez por persona) | `POST_REACTION` | LOW |
 | Comentario en una publicación | `POST /feed/posts/:id/comments` | Quien publicó y quienes ya comentaron, menos el autor | `POST_COMMENT` | NORMAL |
+| Evento del calendario creado, con cambio de fecha o cancelado | `/calendar/events…` | Todo el colegio o la sección (estudiantes, familias, docentes, administración), menos quien lo hizo | `EVENT` | NORMAL (HIGH si es feriado o se cancela) |
 | Reunión programada, cambiada o cancelada | `/courses/:id/meetings`, `/meetings/:id…` | Estudiantes y familias de la clase | `MEETING` | NORMAL (HIGH si se cancela) |
 
 `dedupe_key` por regla, para que reintentar un job no duplique:

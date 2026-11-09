@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Copy, MapPin, Plus, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -336,7 +336,7 @@ function EntryDetails({ entry, canManage, onEdit, onClose }) {
 }
 
 export function CalendarPage() {
-  const [view, setView] = useState(() => (window.matchMedia('(min-width: 768px)').matches ? 'workweek' : 'day'));
+  const [view, setView] = useState(() => (window.matchMedia('(min-width: 768px)').matches ? 'week' : 'day'));
   const [anchor, setAnchor] = useState(() => new Date());
   const [show, setShow] = useState({ events: true, meetings: true, activities: true });
   const [dialog, setDialog] = useState(null); // { type: 'create', defaults } | { type: 'edit', event } | { type: 'view', entry }
@@ -348,6 +348,26 @@ export function CalendarPage() {
   const entries = useMemo(() => toEntries(data, show), [data, show]);
   const canManage = Boolean(data?.canManage);
   const dayList = view === 'month' ? [] : Array.from({ length: days }, (_, index) => addDays(start, index));
+
+  // Desde una notificación (?date=AAAA-MM-DD&event=ID): ir a esa semana y abrir el evento
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusDate = searchParams.get('date');
+  const focusEvent = searchParams.get('event');
+  useEffect(() => {
+    if (focusDate && /^\d{4}-\d{2}-\d{2}$/.test(focusDate)) setAnchor(new Date(`${focusDate}T12:00:00`));
+  }, [focusDate]);
+  useEffect(() => {
+    if (!focusEvent || !data) return;
+    const entry = toEntries(data, { events: true, meetings: false, activities: false }).find((item) => String(item.source.id) === focusEvent);
+    if (!entry) return;
+    setDialog({ type: 'view', entry });
+    // Se consume el parámetro: cerrar el detalle no lo vuelve a abrir
+    setSearchParams((params) => {
+      params.delete('event');
+      params.delete('date');
+      return params;
+    }, { replace: true });
+  }, [focusEvent, data, setSearchParams]);
 
   const openCreate = (defaults) => setDialog({ type: 'create', defaults });
 
@@ -383,7 +403,6 @@ export function CalendarPage() {
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap',
                   view === item.id ? 'bg-brand-50 text-brand-700' : 'text-zinc-600 hover:bg-zinc-100',
-                  item.id === 'workweek' && 'max-sm:hidden',
                 )}
               >
                 {item.label}

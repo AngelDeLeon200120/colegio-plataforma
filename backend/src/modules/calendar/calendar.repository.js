@@ -79,6 +79,37 @@ class CalendarRepository extends BaseRepository {
     return rows.map((row) => ({ id: row.id, name: `${row.short_name} ${row.name}` }));
   }
 
+  /**
+   * A quién avisa un evento. Sin sección: toda la comunidad activa. Con sección: sus estudiantes,
+   * sus familias (con el estudiante, para el selector de hijos), sus docentes y la administración.
+   * Devuelve [{ userId, studentId? }].
+   */
+  async findEventAudience(sectionId) {
+    const active = `u.school_id = ? AND u.status = 'ACTIVE' AND u.deleted_at IS NULL`;
+    if (!sectionId) {
+      const rows = await this.query(`SELECT u.id FROM users u WHERE ${active}`, [this.schoolId]);
+      return rows.map((row) => ({ userId: row.id }));
+    }
+    const rows = await this.query(
+      `SELECT u.id AS user_id, NULL AS student_id FROM users u
+        WHERE ${active} AND (u.role = 'ADMIN'
+           OR EXISTS (SELECT 1 FROM courses c WHERE c.school_id = u.school_id AND c.section_id = ? AND c.teacher_id = u.id AND c.is_active = 1)
+           OR EXISTS (SELECT 1 FROM sections s WHERE s.school_id = u.school_id AND s.id = ? AND s.homeroom_teacher_id = u.id))
+       UNION
+       SELECT st.user_id, NULL FROM enrollments e
+         JOIN students st ON st.school_id = e.school_id AND st.id = e.student_id AND st.user_id IS NOT NULL
+         JOIN users u     ON u.id = st.user_id AND ${active}
+        WHERE e.school_id = ? AND e.section_id = ? AND e.status = 'ACTIVE'
+       UNION
+       SELECT gs.guardian_id, gs.student_id FROM enrollments e
+         JOIN guardian_students gs ON gs.school_id = e.school_id AND gs.student_id = e.student_id AND gs.receives_notifications = 1
+         JOIN users u              ON u.id = gs.guardian_id AND ${active}
+        WHERE e.school_id = ? AND e.section_id = ? AND e.status = 'ACTIVE'`,
+      [this.schoolId, sectionId, sectionId, this.schoolId, this.schoolId, sectionId, this.schoolId, this.schoolId, sectionId],
+    );
+    return rows.map((row) => ({ userId: row.user_id, studentId: row.student_id ?? null }));
+  }
+
   async sectionExists(sectionId) {
     return Boolean(await this.one('SELECT 1 AS found FROM sections WHERE school_id = ? AND id = ?', [this.schoolId, sectionId]));
   }

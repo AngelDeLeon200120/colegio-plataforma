@@ -1,4 +1,5 @@
-import { Clock, Inbox, Search } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Clock, Inbox, Search } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
@@ -14,10 +15,59 @@ const EMPTY_MESSAGES = {
   ALL: 'No hay alumnos con esta búsqueda.',
 };
 
-function FilterTabs({ value, onChange, summary }) {
+function ScrollArrow({ direction, onClick }) {
+  const Icon = direction < 0 ? ChevronLeft : ChevronRight;
   return (
-    <div role="tablist" aria-label="Filtrar por estado" className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]">
-      {FILTERS.map((filter) => {
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={direction < 0 ? 'Ver filtros anteriores' : 'Ver más filtros'}
+      className={cn(
+        'absolute top-0 z-10 flex h-7 w-8 items-center text-zinc-600 hover:text-zinc-900',
+        direction < 0 ? 'left-0 justify-start bg-gradient-to-r from-white from-60% pl-1' : 'right-0 justify-end bg-gradient-to-l from-white from-60% pr-1',
+      )}
+    >
+      <Icon className="size-4" />
+    </button>
+  );
+}
+
+/** Pestañas de estado con desplazamiento horizontal: barra visible y flechas cuando no caben. */
+function FilterTabs({ value, onChange, summary }) {
+  const scroller = useRef(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    setEdges({ left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 });
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller.current);
+    return () => observer.disconnect();
+  }, [measure]);
+
+  // La pestaña elegida siempre queda a la vista
+  useEffect(() => {
+    scroller.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [value]);
+
+  const scrollBy = (direction) => scroller.current?.scrollBy({ left: direction * 160, behavior: 'smooth' });
+
+  return (
+    <div className="relative px-3 pb-1">
+      {edges.left && <ScrollArrow direction={-1} onClick={() => scrollBy(-1)} />}
+      <div
+        ref={scroller}
+        onScroll={measure}
+        role="tablist"
+        aria-label="Filtrar por estado"
+        className="flex gap-1 overflow-x-auto pb-1.5 [scrollbar-color:var(--color-zinc-300)_transparent] [scrollbar-width:thin]"
+      >
+        {FILTERS.map((filter) => {
         const count = filter.value === 'ALL' ? summary.total : summary[filter.value];
         const active = filter.value === value;
         return (
@@ -36,7 +86,9 @@ function FilterTabs({ value, onChange, summary }) {
             <span className={cn('tabular-nums', active ? 'text-zinc-300' : 'text-zinc-400')}>{count}</span>
           </button>
         );
-      })}
+        })}
+      </div>
+      {edges.right && <ScrollArrow direction={1} onClick={() => scrollBy(1)} />}
     </div>
   );
 }

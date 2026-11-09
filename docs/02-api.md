@@ -247,7 +247,7 @@ Cada mensaje crea una notificación `MESSAGE` para quienes ven el hilo (menos el
 | GET · POST | `/feed/posts/:id/comments` | todos | Todos los comentarios · `{ body }` |
 | DELETE | `/feed/comments/:id` | autor o A | Borrado lógico |
 
-Una publicación nueva crea una notificación `POST` para toda la comunidad activa (menos quien publica) con enlace a `/home?post={id}`; reacciones y comentarios no notifican. Emite `feed:changed` a la sala `school:`.
+Una publicación nueva crea una notificación `POST` para toda la comunidad activa (menos quien publica) con enlace a `/home?post={id}`; un "Me gusta" avisa a quien publicó (`POST_REACTION`, una vez por persona) y un comentario avisa a quien publicó y a quienes ya comentaron (`POST_COMMENT`). Emite `feed:changed` a la sala `school:`.
 
 ### 2.8d Reuniones virtuales
 
@@ -396,6 +396,8 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 | Pago registrado | `POST /payments` | Encargado financiero | `PAYMENT_RECEIVED` | NORMAL |
 | Mensaje nuevo o respuesta | `POST /messages/…` | Quienes ven el hilo, menos el autor | `MESSAGE` | NORMAL (HIGH si es por fallecimiento) |
 | Publicación nueva en Inicio | `POST /feed/posts` | Todos los usuarios activos, menos quien publica | `POST` | NORMAL (HIGH si está fijada) |
+| "Me gusta" en una publicación | `PUT /feed/posts/:id/reaction` | Quien publicó (una vez por persona) | `POST_REACTION` | LOW |
+| Comentario en una publicación | `POST /feed/posts/:id/comments` | Quien publicó y quienes ya comentaron, menos el autor | `POST_COMMENT` | NORMAL |
 | Reunión programada, cambiada o cancelada | `/courses/:id/meetings`, `/meetings/:id…` | Estudiantes y familias de la clase | `MEETING` | NORMAL (HIGH si se cancela) |
 
 `dedupe_key` por regla, para que reintentar un job no duplique:

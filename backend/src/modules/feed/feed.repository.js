@@ -151,12 +151,30 @@ class FeedRepository extends BaseRepository {
     await this.query('UPDATE posts SET deleted_at = UTC_TIMESTAMP() WHERE school_id = ? AND id = ? AND deleted_at IS NULL', [this.schoolId, postId]);
   }
 
+  /** Devuelve true si se agregó un "Me gusta" que no existía. */
   async setReaction(postId, userId, on) {
     if (on) {
-      await this.query('INSERT IGNORE INTO post_reactions (school_id, post_id, user_id) VALUES (?, ?, ?)', [this.schoolId, postId, userId]);
-    } else {
-      await this.query('DELETE FROM post_reactions WHERE school_id = ? AND post_id = ? AND user_id = ?', [this.schoolId, postId, userId]);
+      const result = await this.query('INSERT IGNORE INTO post_reactions (school_id, post_id, user_id) VALUES (?, ?, ?)', [this.schoolId, postId, userId]);
+      return result.affectedRows > 0;
     }
+    await this.query('DELETE FROM post_reactions WHERE school_id = ? AND post_id = ? AND user_id = ?', [this.schoolId, postId, userId]);
+    return false;
+  }
+
+  async findCommenterIds(postId) {
+    const rows = await this.query(
+      `SELECT DISTINCT pc.author_id
+         FROM post_comments pc
+         JOIN users u ON u.school_id = pc.school_id AND u.id = pc.author_id AND u.status = 'ACTIVE' AND u.deleted_at IS NULL
+        WHERE pc.school_id = ? AND pc.post_id = ? AND pc.deleted_at IS NULL`,
+      [this.schoolId, postId],
+    );
+    return rows.map((row) => row.author_id);
+  }
+
+  async findUserName(userId) {
+    const row = await this.one('SELECT first_name, last_name FROM users WHERE school_id = ? AND id = ?', [this.schoolId, userId]);
+    return row && { firstName: row.first_name, lastName: row.last_name };
   }
 
   async insertComment({ postId, authorId, body }) {

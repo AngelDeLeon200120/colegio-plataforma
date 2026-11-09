@@ -12,6 +12,16 @@ export const POST_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 // Cualquiera con el muro abierto lo refresca; no se crean notificaciones por publicación
 const announce = (user, data) => emitToRoom(rooms.school(user.schoolId), 'feed:changed', { ...data, by: user.id });
 
+const excerpt = (text) => {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > 160 ? `${clean.slice(0, 157)}…` : clean;
+};
+
+async function actorName(repo, userId) {
+  const actor = await repo.findUserName(userId);
+  return actor ? `${actor.firstName} ${actor.lastName}` : 'Alguien';
+}
+
 async function loadPost(user, postId) {
   const post = await feedRepository.findPost(user.id, postId);
   if (!post) throw AppError.notFound('Publicación no encontrada');
@@ -87,10 +97,30 @@ export const feedService = {
   },
 
   async react(user, postId, on) {
-    await loadPost(user, postId);
-    await feedRepository.setReaction(postId, user.id, on);
+    const current = await loadPost(user, postId);
+    await withTransaction(async (connection, afterCommit) => {
+      const repo = feedRepository.withConnection(connection);
+      const added = await repo.setReaction(postId, user.id, on);
+      // Un aviso por persona y publicación: quitar y volver a dar "Me gusta" no lo repite
+      const notifications =
+        added && current.author.id !== user.id
+          ? await notificationsService.createForUsers(connection, [current.author.id], {
+              type: 'POST_REACTION',
+              priority: 'LOW',
+              title: `A ${await actorName(repo, user.id)} le gusta tu publicación`.slice(0, 200),
+              body: excerpt(current.body),
+              entityType: 'post',
+              entityId: postId,
+              actionUrl: `/home?post=${postId}`,
+              dedupeKey: `post-like:${postId}:${user.id}`,
+            })
+          : [];
+      afterCommit(() => {
+        notificationsService.publish(notifications);
+        announce(user, { postId, kind: 'reaction' });
+      });
+    });
     const post = await loadPost(user, postId);
-    announce(user, { postId, kind: 'reaction' });
     return { reactionCount: post.reactionCount, reactedByMe: post.reactedByMe };
   },
 
@@ -99,10 +129,37 @@ export const feedService = {
     return feedRepository.listComments(postId);
   },
 
+  /** Avisa a quien publicó y a quienes ya comentaron (menos a quien escribe). */
   async comment(user, postId, body) {
-    await loadPost(user, postId);
-    const id = await feedRepository.insertComment({ postId, authorId: user.id, body });
-    announce(user, { postId, kind: 'comment' });
+    const post = await loadPost(user, postId);
+    const id = await withTransaction(async (connection, afterCommit) => {
+      const repo = feedRepository.withConnection(connection);
+      const commentId = await repo.insertComment({ postId, authorId: user.id, body });
+      const commenters = await repo.findCommenterIds(postId);
+      const name = await actorName(repo, user.id);
+      const base = {
+        type: 'POST_COMMENT',
+        priority: 'NORMAL',
+        body: excerpt(body),
+        entityType: 'post',
+        entityId: postId,
+        actionUrl: `/home?post=${postId}`,
+        dedupeKey: `post-comment:${commentId}`,
+      };
+      const notifications = [];
+      if (post.author.id !== user.id) {
+        notifications.push(...(await notificationsService.createForUsers(connection, [post.author.id], { ...base, title: `${name} comentó tu publicación`.slice(0, 200) })));
+      }
+      const others = commenters.filter((commenterId) => commenterId !== user.id && commenterId !== post.author.id);
+      notifications.push(
+        ...(await notificationsService.createForUsers(connection, others, { ...base, title: `${name} también comentó una publicación que comentaste`.slice(0, 200) })),
+      );
+      afterCommit(() => {
+        notificationsService.publish(notifications);
+        announce(user, { postId, kind: 'comment' });
+      });
+      return commentId;
+    });
     return feedRepository.findComment(id);
   },
 

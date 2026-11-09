@@ -1,6 +1,6 @@
 import { AppError } from '../../core/errors/AppError.js';
 import { withTransaction } from '../../core/db/transaction.js';
-import { emitToRoom } from '../../realtime/emitter.js';
+import { emitToRoom, emitToUsers } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
 import { assertCourseStaff } from '../academic/academic.access.js';
 import { academicRepository } from '../academic/academic.repository.js';
@@ -65,6 +65,33 @@ function dedupeCells(cells) {
 }
 
 /**
+ * Celdas de columnas ligadas a una actividad: si la entrega ya estaba aprobada, su nota (y la de
+ * la última aprobación del historial) pasa a ser la del cuadro. Después del COMMIT refresca en vivo
+ * la vista del estudiante y su familia, sin crear notificaciones.
+ */
+async function syncSubmissions(connection, afterCommit, { cells, items, course }) {
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const repo = gradebookRepository.withConnection(connection);
+  const synced = [];
+  for (const cell of cells) {
+    const item = itemsById.get(cell.gradeItemId);
+    if (!item?.activityId || cell.score === null) continue;
+    const result = await repo.syncApprovedSubmission({ activityId: item.activityId, studentId: cell.studentId, score: cell.score, itemMaxScore: item.maxScore });
+    if (result) synced.push(result);
+  }
+  if (!synced.length) return;
+
+  const guardianIds = await repo.findGuardianIds([...new Set(synced.map((item) => item.studentId))]);
+  afterCommit(() => {
+    for (const item of synced) {
+      const event = { submissionId: item.submissionId, activityId: item.activityId, studentId: item.studentId, status: 'APPROVED', score: item.score };
+      emitToUsers([item.studentUserId, ...guardianIds].filter(Boolean), 'submission:updated', event);
+      emitToRoom(rooms.courseStaff(course.id), 'submission:updated', event);
+    }
+  });
+}
+
+/**
  * Escritura común a la hoja y a la importación: todo o nada.
  * Emite el cambio a los demás editores del curso después del COMMIT.
  */
@@ -81,6 +108,7 @@ async function writeCells({ user, course, unit, cells, onStale, beforeWrite }) {
   await withTransaction(async (connection, afterCommit) => {
     if (beforeWrite) await beforeWrite(connection);
     await gradebookRepository.withConnection(connection).upsertScores(unique, user.id);
+    await syncSubmissions(connection, afterCommit, { cells: unique, items, course });
     afterCommit(() =>
       emitToRoom(rooms.courseStaff(course.id), 'gradebook:cells_updated', {
         courseId: course.id,
@@ -159,7 +187,6 @@ export const gradebookService = {
     ]);
     const [error] = findCellErrors([{ gradeItemId, studentId, score }], items, students);
     if (error) throw AppError.unprocessable('INVALID_CELLS', error.message, [error]);
-    const item = items.find((candidate) => candidate.id === gradeItemId);
 
     const result = await withTransaction(async (connection, afterCommit) => {
       const repo = gradebookRepository.withConnection(connection);
@@ -169,9 +196,7 @@ export const gradebookService = {
       }
       await repo.upsertScores([{ gradeItemId, studentId, score }], user.id);
       await repo.insertChange({ gradeItemId, studentId, oldScore, newScore: score, note, changedBy: user.id });
-      if (item.activityId && score !== null) {
-        await repo.syncApprovedSubmission({ activityId: item.activityId, studentId, score, itemMaxScore: item.maxScore });
-      }
+      await syncSubmissions(connection, afterCommit, { cells: [{ gradeItemId, studentId, score }], items, course });
       const cell = { gradeItemId, studentId, score, improved: true };
       afterCommit(() =>
         emitToRoom(rooms.courseStaff(course.id), 'gradebook:cells_updated', { courseId: course.id, unitId: unit.id, updatedBy: user.id, cells: [cell] }),

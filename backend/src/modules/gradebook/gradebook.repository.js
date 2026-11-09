@@ -151,13 +151,39 @@ class GradebookRepository extends BaseRepository {
    * No cambia el estado de la entrega ni genera avisos.
    */
   async syncApprovedSubmission({ activityId, studentId, score, itemMaxScore }) {
-    await this.query(
-      `UPDATE submissions s
+    const row = await this.one(
+      `SELECT s.id, s.score, a.max_score, st.user_id
+         FROM submissions s
          JOIN activities a ON a.school_id = s.school_id AND a.id = s.activity_id
-          SET s.score = IF(a.max_score IS NULL OR a.max_score = ?, ?, ROUND(? / ? * a.max_score, 2))
-        WHERE s.school_id = ? AND s.activity_id = ? AND s.student_id = ? AND s.status = 'APPROVED'`,
-      [itemMaxScore, score, score, itemMaxScore, this.schoolId, activityId, studentId],
+         JOIN students st  ON st.school_id = s.school_id AND st.id = s.student_id
+        WHERE s.school_id = ? AND s.activity_id = ? AND s.student_id = ? AND s.status = 'APPROVED'
+        FOR UPDATE`,
+      [this.schoolId, activityId, studentId],
     );
+    if (!row) return null;
+
+    const value = row.max_score === null || row.max_score === itemMaxScore ? score : Math.round((score / itemMaxScore) * row.max_score * 100) / 100;
+    if (value === row.score) return null;
+
+    // version + 1: una revisión abierta con datos viejos recibe conflicto en lugar de pisar la nota
+    await this.query('UPDATE submissions SET score = ?, version = version + 1 WHERE school_id = ? AND id = ?', [value, this.schoolId, row.id]);
+    // La nota que muestra el historial ("Aprobada · 18 / 20") es la de la última aprobación
+    const review = await this.one(
+      `SELECT id FROM submission_reviews WHERE school_id = ? AND submission_id = ? AND decision = 'APPROVED' ORDER BY id DESC LIMIT 1`,
+      [this.schoolId, row.id],
+    );
+    if (review) await this.query('UPDATE submission_reviews SET score = ? WHERE school_id = ? AND id = ?', [value, this.schoolId, review.id]);
+
+    return { submissionId: row.id, activityId, studentId, studentUserId: row.user_id, score: value };
+  }
+
+  async findGuardianIds(studentIds) {
+    if (!studentIds.length) return [];
+    const rows = await this.query(
+      `SELECT DISTINCT guardian_id FROM guardian_students WHERE school_id = ? AND student_id IN (${studentIds.map(() => '?').join(', ')})`,
+      [this.schoolId, ...studentIds],
+    );
+    return rows.map((row) => row.guardian_id);
   }
 
   async findStudentsByCodes(codes) {

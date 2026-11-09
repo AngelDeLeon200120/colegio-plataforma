@@ -4,7 +4,7 @@ import { AlertTriangle, Lock, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StudentSwitcher } from '@/features/homework/components/StudentSwitcher';
-import { useViewedStudent } from '@/features/homework/hooks';
+import { useHomeworkLiveUpdates, useViewedStudent } from '@/features/homework/hooks';
 import { api } from '@/lib/apiClient';
 import { cn } from '@/lib/cn';
 import { formatScore } from '@/lib/format';
@@ -83,6 +83,7 @@ function CourseCard({ course, passing }) {
 /** Boleta: notas publicadas por unidad y resumen del ciclo. Estudiantes y familias. */
 export function ReportCardPage() {
   const { isParent, children, studentId, selectStudent } = useViewedStudent();
+  useHomeworkLiveUpdates();
   const [searchParams, setSearchParams] = useSearchParams();
   const unitParam = searchParams.get('unit');
   const { data, isLoading, isError, error, isFetching } = useReportCard(studentId, unitParam, !isParent || Boolean(studentId));

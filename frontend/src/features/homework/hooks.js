@@ -51,7 +51,11 @@ export function useHomeworkLiveUpdates() {
 
   useEffect(() => {
     const socket = getSocket();
-    const onUpdated = () => queryClient.invalidateQueries({ queryKey: homeworkKeys.all });
+    // Una nota cambiada (revisión o cuadro de notas) también mueve la boleta
+    const onUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: homeworkKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['report-card'] });
+    };
     socket.on('submission:updated', onUpdated);
     socket.on('activity:published', onUpdated);
     return () => {

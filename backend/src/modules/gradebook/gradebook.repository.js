@@ -41,7 +41,9 @@ class GradebookRepository extends BaseRepository {
 
   async listScores(courseId, unitId) {
     const rows = await this.query(
-      `SELECT gs.grade_item_id, gs.student_id, gs.score, gs.is_excused
+      `SELECT gs.grade_item_id, gs.student_id, gs.score, gs.is_excused,
+              EXISTS (SELECT 1 FROM grade_score_changes ch
+                       WHERE ch.school_id = gs.school_id AND ch.grade_item_id = gs.grade_item_id AND ch.student_id = gs.student_id) AS improved
          FROM grade_scores gs
          JOIN grade_items gi ON gi.school_id = gs.school_id AND gi.id = gs.grade_item_id
         WHERE gs.school_id = ? AND gi.course_id = ? AND gi.academic_unit_id = ?`,
@@ -52,6 +54,7 @@ class GradebookRepository extends BaseRepository {
       studentId: row.student_id,
       score: row.score,
       isExcused: Boolean(row.is_excused),
+      improved: Boolean(row.improved),
     }));
   }
 
@@ -101,6 +104,59 @@ class GradebookRepository extends BaseRepository {
        VALUES ${placeholders} AS incoming
        ON DUPLICATE KEY UPDATE score = incoming.score, updated_by = incoming.updated_by`,
       params,
+    );
+  }
+
+  /** Nota actual de una celda, bloqueada para la transacción de la mejora. */
+  async lockScore(gradeItemId, studentId) {
+    const row = await this.one(
+      'SELECT score FROM grade_scores WHERE school_id = ? AND grade_item_id = ? AND student_id = ? FOR UPDATE',
+      [this.schoolId, gradeItemId, studentId],
+    );
+    return row ? row.score : null;
+  }
+
+  async insertChange({ gradeItemId, studentId, oldScore, newScore, note, changedBy }) {
+    await this.query(
+      `INSERT INTO grade_score_changes (school_id, grade_item_id, student_id, kind, old_score, new_score, note, changed_by)
+       VALUES (?, ?, ?, 'MEJORA', ?, ?, ?, ?)`,
+      [this.schoolId, gradeItemId, studentId, oldScore, newScore, note ?? null, changedBy],
+    );
+  }
+
+  async listChanges(gradeItemId, studentId) {
+    const rows = await this.query(
+      `SELECT ch.id, ch.kind, ch.old_score, ch.new_score, ch.note, ch.created_at, u.first_name, u.last_name
+         FROM grade_score_changes ch
+         JOIN users u ON u.school_id = ch.school_id AND u.id = ch.changed_by
+        WHERE ch.school_id = ? AND ch.grade_item_id = ? AND ch.student_id = ?
+        ORDER BY ch.id DESC
+        LIMIT 100`,
+      [this.schoolId, gradeItemId, studentId],
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      oldScore: row.old_score,
+      newScore: row.new_score,
+      note: row.note,
+      createdAt: row.created_at,
+      changedBy: `${row.first_name} ${row.last_name}`,
+    }));
+  }
+
+  /**
+   * Si la columna viene de una actividad y la entrega ya estaba aprobada, su nota se
+   * actualiza también (en la escala de la actividad) para que estudiante y familia vean lo mismo.
+   * No cambia el estado de la entrega ni genera avisos.
+   */
+  async syncApprovedSubmission({ activityId, studentId, score, itemMaxScore }) {
+    await this.query(
+      `UPDATE submissions s
+         JOIN activities a ON a.school_id = s.school_id AND a.id = s.activity_id
+          SET s.score = IF(a.max_score IS NULL OR a.max_score = ?, ?, ROUND(? / ? * a.max_score, 2))
+        WHERE s.school_id = ? AND s.activity_id = ? AND s.student_id = ? AND s.status = 'APPROVED'`,
+      [itemMaxScore, score, score, itemMaxScore, this.schoolId, activityId, studentId],
     );
   }
 

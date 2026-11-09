@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { AlertTriangle, ChevronRight, ClipboardList, Inbox } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
@@ -54,9 +54,24 @@ export function MyActivitiesPage() {
   useHomeworkLiveUpdates();
 
   const studentQuery = isParent && studentId ? `?student=${studentId}` : '';
+  // Filtro por curso (materia): las actividades se ven agrupadas por la clase a la que pertenecen
+  const [searchParams, setSearchParams] = useSearchParams();
+  const courses = [
+    ...new Map((data?.activities ?? []).map((activity) => [String(activity.course?.id), { id: String(activity.course?.id), ...activity.subject }])).values(),
+  ];
+  // Si el curso del filtro no es de este estudiante (p. ej. al cambiar de hijo), se muestran todos
+  const requestedCourse = searchParams.get('course') ?? '';
+  const courseFilter = courses.some((course) => course.id === requestedCourse) ? requestedCourse : '';
+  const visible = (data?.activities ?? []).filter((activity) => !courseFilter || String(activity.course?.id) === courseFilter);
+  const pickCourse = (id) =>
+    setSearchParams((params) => {
+      if (id) params.set('course', id);
+      else params.delete('course');
+      return params;
+    });
   const groups = GROUPS.map((group) => ({
     ...group,
-    items: (data?.activities ?? []).filter((activity) => groupOf(activity) === group.id),
+    items: visible.filter((activity) => groupOf(activity) === group.id),
   })).filter((group) => group.items.length);
 
   return (
@@ -72,6 +87,27 @@ export function MyActivitiesPage() {
         </div>
         <StudentSwitcher students={children} studentId={studentId} onChange={selectStudent} />
       </header>
+
+      {courses.length > 1 && (
+        <div className="mt-5 flex flex-wrap gap-1.5" role="tablist" aria-label="Curso">
+          {[{ id: '', name: 'Todos los cursos', color: null }, ...courses].map((course) => (
+            <button
+              key={course.id || 'all'}
+              type="button"
+              role="tab"
+              aria-selected={courseFilter === course.id}
+              onClick={() => pickCourse(course.id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                courseFilter === course.id ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
+              )}
+            >
+              {course.color && <span className="size-2.5 rounded-full" style={{ backgroundColor: course.color }} />}
+              {course.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 space-y-6">
         {missingChild && <p className="text-sm text-zinc-500">Tu cuenta aún no está vinculada a ningún estudiante. Contacta a la administración del colegio.</p>}

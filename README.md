@@ -32,6 +32,13 @@ Si tu base es anterior a la sección de Mensajes, aplica solo la migración:
 mysql -u root -p colegio_saas < database/migrations/001_mensajes.sql
 ```
 
+Y para el muro de Inicio, la mejora de notas, las reuniones virtuales y el calendario
+(solo agrega tablas; se puede aplicar más de una vez):
+
+```bash
+mysql -u root -p colegio_saas < database/migrations/002_muro_reuniones_calendario.sql
+```
+
 Para desarrollo crea un usuario propio en lugar de usar `root`:
 
 ```sql

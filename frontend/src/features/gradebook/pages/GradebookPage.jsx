@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronRight, Lock, Plus, RefreshCw, Upload } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Lock, Plus, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Kbd } from '@/components/ui/Kbd';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn';
 import { ColumnDialog } from '../components/ColumnDialog';
 import { GradeGrid } from '../components/GradeGrid';
 import { ImportDialog } from '../components/ImportDialog';
+import { ImproveDialog } from '../components/ImproveDialog';
 import { SaveIndicator } from '../components/SaveIndicator';
 import { gradebookKeys, useGradebookLiveUpdates, useGradebookSheet } from '../hooks';
 import { useGradeSheet } from '../useGradeSheet';
@@ -54,6 +55,24 @@ function Sheet({ courseId, sheet, sheetKey }) {
 
   const weightSum = sheet.items.reduce((sum, item) => sum + item.weight, 0);
 
+  // Celda seleccionada: a ella se aplica la "Mejora"
+  const clampIndex = (value, length) => Math.min(Math.max(value, 0), length - 1);
+  const activeStudent = sheet.students[clampIndex(grid.state.active.row, sheet.students.length)];
+  const activeItem = sheet.items[clampIndex(grid.state.active.col, sheet.items.length)];
+  const [improveTarget, setImproveTarget] = useState(null); // { student, item }
+  const openImprove = () => {
+    const cell = grid.getCell(activeStudent.id, activeItem.id);
+    if (cell.dirty || cell.saving || cell.error) {
+      setNotice(null);
+      setImproveNotice('Espera a que la celda se guarde (o corrige el error) antes de registrar una mejora.');
+      return;
+    }
+    setImproveNotice(null);
+    setImproveTarget({ student: activeStudent, item: activeItem });
+  };
+  const [improveNotice, setImproveNotice] = useState(null);
+  const improveScore = improveTarget ? (sheet.scores.find((score) => score.studentId === improveTarget.student.id && score.gradeItemId === improveTarget.item.id)?.score ?? null) : null;
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2 sm:px-6">
@@ -65,8 +84,18 @@ function Sheet({ courseId, sheet, sheetKey }) {
           onRetry={grid.retry}
         />
         {notice && <span className="text-xs font-medium text-emerald-700">{notice}</span>}
+        {improveNotice && <span className="text-xs font-medium text-amber-700">{improveNotice}</span>}
         {!sheet.readOnly && (
           <div className="ml-auto flex gap-2">
+            <Button
+              size="sm"
+              onClick={openImprove}
+              disabled={!activeStudent || !activeItem}
+              title="Cambiar la nota de la celda seleccionada, aunque esté aprobada (queda en el historial)"
+              className="border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              <Sparkles className="size-3.5" /> Mejora
+            </Button>
             <Button size="sm" onClick={() => setImportOpen(true)}>
               <Upload className="size-3.5" /> Importar
             </Button>
@@ -107,6 +136,10 @@ function Sheet({ courseId, sheet, sheetKey }) {
             <span>
               <Kbd>Ctrl Z</Kbd> deshacer · <Kbd>Shift</Kbd> + flechas para seleccionar
             </span>
+            <span>Arrastra el cuadrito azul de la selección para rellenar (con vista previa)</span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block size-0 border-t-[7px] border-r-[7px] border-t-blue-600 border-r-transparent" /> nota mejorada
+            </span>
           </>
         )}
       </footer>
@@ -120,6 +153,22 @@ function Sheet({ courseId, sheet, sheetKey }) {
           unitId={sheet.unit.id}
           item={columnDialog.item}
           remainingWeight={100 - weightSum}
+        />
+      )}
+
+      {improveTarget && (
+        <ImproveDialog
+          courseId={courseId}
+          unitId={sheet.unit.id}
+          student={improveTarget.student}
+          item={improveTarget.item}
+          currentScore={improveScore}
+          sheetKey={sheetKey}
+          onClose={() => setImproveTarget(null)}
+          onSaved={() => {
+            setImproveTarget(null);
+            setNotice('Mejora guardada (sin notificaciones)');
+          }}
         />
       )}
 

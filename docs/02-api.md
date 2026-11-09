@@ -98,6 +98,8 @@ Pendiente: crear o cerrar el ciclo lectivo desde la interfaz (hoy se hace en la 
 | PATCH · DELETE | `/grade-items/:id` | T* | Edita / borra columna (borrar con notas exige `?force=true`) |
 | POST | `/courses/:id/grade-items/reorder` | T* | `{ unitId, order: [itemId…] }` |
 | PUT | `/courses/:id/gradebook/scores` | T* | **Guardado por lotes** (pegado multi-celda, autosave) — ver abajo |
+| POST | `/courses/:id/gradebook/improvements` | T* | **Mejora**: `{ unitId, gradeItemId, studentId, score, note? }`. Cambia la nota aunque la entrega esté aprobada (si la columna viene de una actividad, también la nota de la entrega aprobada). Guarda el historial y **no** crea notificaciones. Misma nota → `422 NO_CHANGE` |
+| GET | `/courses/:id/gradebook/history?gradeItemId=&studentId=` | T* | `{ history[] }` de mejoras de una celda (antes → después, motivo, quién y cuándo) |
 | PATCH | `/grade-items/:id` `{ isPublished }` | T* | Hace visible (u oculta) la columna para S/P. Pendiente: notificar al publicar |
 | GET | `/me/courses` | T, A | Cursos del ciclo activo (docente: los asignados) con número de estudiantes |
 | GET | `/courses/:id/gradebook/template?unitId=&format=xlsx\|csv` | T* | Plantilla con códigos de alumno, columnas y fila oculta de metadatos (`courseId`, `unitId`, `itemIds`) |
@@ -234,6 +236,37 @@ Hilos con asunto entre familias, estudiantes y el personal. Asuntos: `TAREAS` y 
 
 Cada mensaje crea una notificación `MESSAGE` para quienes ven el hilo (menos el autor) y emite `message:new`.
 
+### 2.8c Muro de Inicio
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/feed/posts?cursor=&limit=` | todos | `{ pinned[] (solo 1.ª página), posts[], nextCursor, canPublish }`. Cada publicación trae reacciones, `reactedByMe` y los últimos 3 comentarios |
+| POST | `/feed/posts` | A | Multipart `{ body, isPinned?, image? }` (JPG, PNG, GIF o WEBP, máx. 8 MB, se verifica el contenido) |
+| PATCH · DELETE | `/feed/posts/:id` | A | `{ body?, isPinned? }` · borrado lógico |
+| PUT | `/feed/posts/:id/reaction` | todos | `{ on }` → "Me gusta" |
+| GET · POST | `/feed/posts/:id/comments` | todos | Todos los comentarios · `{ body }` |
+| DELETE | `/feed/comments/:id` | autor o A | Borrado lógico |
+
+No crea notificaciones; emite `feed:changed` a la sala `school:`.
+
+### 2.8d Reuniones virtuales
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/meetings?courseId=&from=&to=` | todos | Reuniones de las clases que ve la persona → `{ meetings[] (con code, joinUrl, canManage), canSchedule }` |
+| GET | `/meetings/by-code/:code` | todos | Busca por código entre las reuniones visibles (`404` si no es de sus clases) |
+| POST | `/courses/:id/meetings` | T*, A | `{ title, startsAt, durationMinutes?, provider: JITSI | EXTERNAL, externalUrl?, description? }`. Genera un **código único por reunión** (`MAT-3ROB-K7Q2X9`) |
+| PATCH | `/meetings/:id` | T*, A | Edita (no si está cancelada) |
+| POST | `/meetings/:id/cancel` | T*, A | Cancela y avisa |
+
+### 2.8e Calendario general
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/calendar?from=&to=` | todos | Rango ≤ 62 días → `{ events[], meetings[], activities[] (vencimientos), canManage, sections? }`. Los eventos de una sección solo los ve quien pertenece a ella |
+| POST | `/calendar/events` | A | `{ title, category, startsAt, endsAt, allDay?, location?, sectionId?, description? }` |
+| PATCH · DELETE | `/calendar/events/:id` | A | Edita · borrado lógico |
+
 ### 2.9 Finanzas
 
 | Método | Ruta | Roles | Descripción |
@@ -317,6 +350,9 @@ Todos los eventos servidor → cliente comparten la misma forma:
 | `unit:status_changed` | `school:` | `{ unitId, status }` | Refresca contenido visible / bloquea la hoja |
 | `message:new` | `user:` de quienes ven el hilo (y el autor) | `{ threadId, messageId }` | Refresca bandeja, hilo abierto y contador |
 | `message:read` | `user:` | `{ threadId }` | Sincroniza el contador de mensajes entre pestañas |
+| `feed:changed` | `school:` | `{ postId, kind, by }` | Refresca el muro de Inicio |
+| `meeting:changed` | `user:` de la clase, el docente y el autor | `{ meetingId, kind }` | Refresca reuniones y calendario |
+| `calendar:changed` | `school:` | `{ eventId, by }` | Refresca el calendario |
 | `session:revoked` | `user:` | `{ reason }` | Cierra sesión en el cliente |
 
 ### 3.4 Cliente → servidor (con ack)
@@ -359,6 +395,7 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 | Cargo vencido | Cron diario (pasa a `OVERDUE`) | Encargado financiero | `PAYMENT_OVERDUE` | HIGH |
 | Pago registrado | `POST /payments` | Encargado financiero | `PAYMENT_RECEIVED` | NORMAL |
 | Mensaje nuevo o respuesta | `POST /messages/…` | Quienes ven el hilo, menos el autor | `MESSAGE` | NORMAL (HIGH si es por fallecimiento) |
+| Reunión programada, cambiada o cancelada | `/courses/:id/meetings`, `/meetings/:id…` | Estudiantes y familias de la clase | `MEETING` | NORMAL (HIGH si se cancela) |
 
 `dedupe_key` por regla, para que reintentar un job no duplique:
 `{overdue|correction|missed}:{submissionId}:{n.º de aviso}`, `dueSoon:{submissionId}:{dueAt}`,

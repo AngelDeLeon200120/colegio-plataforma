@@ -7,7 +7,9 @@ import {
   courseParams,
   createItemBody,
   deleteItemQuery,
+  historyQuery,
   importBody,
+  improveBody,
   importParams,
   itemParams,
   saveScoresBody,
@@ -29,6 +31,14 @@ gradebookRouter.put(
   validate({ params: courseParams, body: saveScoresBody }),
   controller.saveCells,
 );
+
+gradebookRouter.post(
+  '/courses/:courseId/gradebook/improvements',
+  staff,
+  validate({ params: courseParams, body: improveBody }),
+  controller.improve,
+);
+gradebookRouter.get('/courses/:courseId/gradebook/history', staff, validate({ params: courseParams, query: historyQuery }), controller.history);
 
 gradebookRouter.post('/courses/:courseId/grade-items', staff, validate({ params: courseParams, body: createItemBody }), controller.createItem);
 gradebookRouter.patch('/grade-items/:itemId', staff, validate({ params: itemParams, body: updateItemBody }), controller.updateItem);

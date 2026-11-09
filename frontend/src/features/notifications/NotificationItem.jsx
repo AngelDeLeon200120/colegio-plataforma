@@ -8,6 +8,7 @@ import {
   Inbox,
   MessageSquare,
   RotateCcw,
+  Video,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { formatRelative } from '@/lib/format';
@@ -21,6 +22,7 @@ const LOOK = {
   ACTIVITY_MISSED: { icon: AlertOctagon, className: 'bg-red-50 text-red-600' },
   ACTIVITY_DUE_SOON: { icon: CalendarClock, className: 'bg-violet-50 text-violet-600' },
   MESSAGE: { icon: MessageSquare, className: 'bg-brand-50 text-brand-700' },
+  MEETING: { icon: Video, className: 'bg-violet-50 text-violet-600' },
 };
 const DEFAULT_LOOK = { icon: Bell, className: 'bg-zinc-100 text-zinc-500' };
 

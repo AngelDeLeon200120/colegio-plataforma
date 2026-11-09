@@ -11,8 +11,8 @@ export const gradebookKeys = {
   all: (courseId) => ['gradebook', String(courseId)],
 };
 
-export function useMyCourses() {
-  return useQuery({ queryKey: gradebookKeys.courses, queryFn: gradebookApi.myCourses });
+export function useMyCourses({ enabled = true } = {}) {
+  return useQuery({ queryKey: gradebookKeys.courses, queryFn: gradebookApi.myCourses, enabled });
 }
 
 export function useGradebookSheet(courseId, unitId) {

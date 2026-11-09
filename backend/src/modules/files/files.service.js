@@ -69,6 +69,10 @@ class FilesRepository extends BaseRepository {
                            JOIN students st ON st.school_id = e.school_id AND st.id = e.student_id
                           WHERE e.school_id = c.school_id AND e.section_id = c.section_id AND e.status = 'ACTIVE'
                             AND (st.user_id = ? OR ${guardianOf('st.id')}))))
+           -- Imagen del muro de Inicio: la ve toda la comunidad del colegio
+           OR EXISTS (
+                SELECT 1 FROM posts p
+                 WHERE p.school_id = f.school_id AND p.image_file_id = f.id AND p.deleted_at IS NULL)
         )`,
       [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id],
     );

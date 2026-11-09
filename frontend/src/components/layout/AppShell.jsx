@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { Award, Bell, BookOpen, ClipboardCheck, GraduationCap, LayoutDashboard, Menu, MessageSquare, School, Table2, Users, Wallet } from 'lucide-react';
+import {
+  Award,
+  Bell,
+  BookOpen,
+  CalendarDays,
+  ClipboardCheck,
+  GraduationCap,
+  Home,
+  LayoutDashboard,
+  Menu,
+  MessageSquare,
+  School,
+  Table2,
+  Users,
+  Video,
+  Wallet,
+} from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store';
 import { useMessagesLive, useUnreadMessages } from '@/features/messages/hooks';
 import { useNotificationsLive } from '@/features/notifications/hooks';
@@ -13,13 +29,20 @@ import { UserMenu } from './UserMenu';
 const NOTIFICATIONS_PATH = '/notifications';
 const MESSAGES_PATH = '/messages';
 const messagesItem = { to: MESSAGES_PATH, label: 'Mensajes', icon: MessageSquare };
+const homeItem = { to: '/home', label: 'Inicio', icon: Home };
+const meetingsItem = { to: '/meetings', label: 'Reuniones', icon: Video };
+const calendarItem = { to: '/calendar', label: 'Calendario', icon: CalendarDays };
 
 const staffNavigation = [
-  { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
-  { to: '/courses', label: 'Mis cursos', icon: BookOpen, end: true },
+  homeItem,
+  { to: '/dashboard', label: 'Resumen', icon: LayoutDashboard },
+  // La página de un curso vive en /courses/:id (su hoja de notas, en /courses/:id/gradebook)
+  { to: '/courses', label: 'Mis cursos', icon: BookOpen, end: true, alsoActive: (path) => /^\/courses\/\d+\/?$/.test(path) },
   { to: '/activities', label: 'Actividades', icon: ClipboardCheck },
   // La hoja de un curso vive en /courses/:id/gradebook
   { to: '/gradebook', label: 'Cuadro de notas', icon: Table2, alsoActive: (path) => path.endsWith('/gradebook') },
+  meetingsItem,
+  calendarItem,
   messagesItem,
   { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
 ];
@@ -34,15 +57,21 @@ const NAVIGATION_BY_ROLE = {
   ],
   TEACHER: staffNavigation,
   STUDENT: [
+    homeItem,
     { to: '/my/activities', label: 'Mis tareas', icon: ClipboardCheck },
     { to: '/my/grades', label: 'Mis notas', icon: Award },
+    meetingsItem,
+    calendarItem,
     messagesItem,
     { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
   ],
   PARENT: [
+    homeItem,
     { to: '/my/activities', label: 'Tareas', icon: ClipboardCheck },
     { to: '/my/grades', label: 'Notas', icon: Award },
     { to: '/finance', label: 'Pagos', icon: Wallet },
+    meetingsItem,
+    calendarItem,
     messagesItem,
     { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
   ],

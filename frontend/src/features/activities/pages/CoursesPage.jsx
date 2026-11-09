@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { ClipboardCheck, Table2 } from 'lucide-react';
+import { ClipboardCheck, Table2, Video } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useMyCourses } from '@/features/gradebook/hooks';
 import { useTeacherActivities } from '../hooks';
@@ -29,7 +29,7 @@ export function CoursesPage() {
           <CourseTile
             key={course.id}
             course={course}
-            to={`/activities?course=${course.id}`}
+            to={`/courses/${course.id}`}
             badge={
               toReviewByCourse[course.id] > 0 && (
                 <span className="w-fit rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
@@ -38,8 +38,11 @@ export function CoursesPage() {
               )
             }
           >
-            <Link to={`/activities?course=${course.id}`} className={`relative ${iconLinkClass}`} title="Actividades" aria-label="Actividades">
+            <Link to={`/courses/${course.id}`} className={`relative ${iconLinkClass}`} title="Actividades" aria-label="Actividades">
               <ClipboardCheck className="size-5" />
+            </Link>
+            <Link to={`/courses/${course.id}?tab=meetings`} className={`relative ${iconLinkClass}`} title="Reuniones" aria-label="Reuniones">
+              <Video className="size-5" />
             </Link>
             <Link to={`/courses/${course.id}/gradebook`} className={`relative ${iconLinkClass}`} title="Cuadro de notas" aria-label="Cuadro de notas">
               <Table2 className="size-5" />

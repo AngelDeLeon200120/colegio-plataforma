@@ -132,3 +132,9 @@ export async function apiDownload(path) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** URL firmada (5 min) de un archivo protegido, para mostrarlo en un <img>. */
+export async function signedFileUrl(fileId) {
+  const { url } = await api(`/files/${fileId}/url`);
+  return `${API_URL}${url}`;
+}

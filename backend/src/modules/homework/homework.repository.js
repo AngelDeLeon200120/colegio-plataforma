@@ -32,6 +32,7 @@ function toActivity(row) {
     allowLate: Boolean(row.allow_late),
     isClosed: row.activity_status === 'CLOSED' || row.unit_status === 'CLOSED',
     subject: { name: row.subject_name, color: row.subject_color },
+    course: { id: row.course_id },
     unit: { id: row.unit_id, name: row.unit_name, status: row.unit_status },
     submission: {
       id: row.submission_id,

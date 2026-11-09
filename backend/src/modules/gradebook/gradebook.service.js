@@ -144,6 +144,52 @@ export const gradebookService = {
     return { saved: saved.length, cells: saved.map(({ gradeItemId, studentId, score }) => ({ gradeItemId, studentId, score })) };
   },
 
+  /**
+   * "Mejora": cambia una nota aunque ya esté aprobada y deja constancia en el historial.
+   * No genera notificaciones; la celda queda marcada en azul para el personal.
+   */
+  async improve(user, courseId, { unitId, gradeItemId, studentId, score, note }) {
+    const course = await loadCourse(user, courseId);
+    const unit = await loadUnit(course, unitId);
+    assertEditable(unit);
+
+    const [items, students] = await Promise.all([
+      gradebookRepository.listItems(course.id, unit.id),
+      academicRepository.listSectionStudents(course.sectionId),
+    ]);
+    const [error] = findCellErrors([{ gradeItemId, studentId, score }], items, students);
+    if (error) throw AppError.unprocessable('INVALID_CELLS', error.message, [error]);
+    const item = items.find((candidate) => candidate.id === gradeItemId);
+
+    const result = await withTransaction(async (connection, afterCommit) => {
+      const repo = gradebookRepository.withConnection(connection);
+      const oldScore = await repo.lockScore(gradeItemId, studentId);
+      if (oldScore === score) {
+        throw AppError.unprocessable('NO_CHANGE', 'La nota nueva es igual a la actual');
+      }
+      await repo.upsertScores([{ gradeItemId, studentId, score }], user.id);
+      await repo.insertChange({ gradeItemId, studentId, oldScore, newScore: score, note, changedBy: user.id });
+      if (item.activityId && score !== null) {
+        await repo.syncApprovedSubmission({ activityId: item.activityId, studentId, score, itemMaxScore: item.maxScore });
+      }
+      const cell = { gradeItemId, studentId, score, improved: true };
+      afterCommit(() =>
+        emitToRoom(rooms.courseStaff(course.id), 'gradebook:cells_updated', { courseId: course.id, unitId: unit.id, updatedBy: user.id, cells: [cell] }),
+      );
+      return { cell, oldScore };
+    });
+
+    const history = await gradebookRepository.listChanges(gradeItemId, studentId);
+    return { ...result, history };
+  },
+
+  async history(user, courseId, { gradeItemId, studentId }) {
+    const course = await loadCourse(user, courseId);
+    const item = await gradebookRepository.findItem(gradeItemId);
+    if (!item || item.courseId !== course.id) throw AppError.notFound('Columna no encontrada');
+    return { history: await gradebookRepository.listChanges(gradeItemId, studentId) };
+  },
+
   async createItem(user, courseId, { unitId, name, maxScore, weight }) {
     const course = await loadCourse(user, courseId);
     const unit = await loadUnit(course, unitId);

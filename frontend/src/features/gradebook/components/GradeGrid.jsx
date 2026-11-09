@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { Eye, EyeOff, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { formatScore } from '@/lib/format';
-import { ERROR_LABELS, PASSING_SCORE, accumulatedTotal, average, cellText, parseTsv, round, toTsv } from '../gridModel';
+import { ERROR_LABELS, PASSING_SCORE, accumulatedTotal, average, cellText, parseInput, parseTsv, round, toTsv } from '../gridModel';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -93,11 +93,25 @@ function ItemHeader({ item, readOnly, onEdit }) {
  * Hoja de notas tipo hoja de cálculo.
  * Teclado: flechas, Tab, Enter, F2, Supr, Ctrl+C / Ctrl+V / Ctrl+Z / Ctrl+A, Shift para extender la selección.
  */
+/** Índice dentro del bloque de origen que se repite al rellenar (también hacia arriba o a la izquierda). */
+const wrap = (index, start, size) => start + ((((index - start) % size) + size) % size);
+
+const inArea = (area, row, col) => area && row >= area.top && row <= area.bottom && col >= area.left && col <= area.right;
+
 export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
   const { items, students, readOnly } = sheet;
   const { state, dispatch, getCell, setCells, undo } = grid;
   const containerRef = useRef(null);
   const dragging = useRef(false);
+  // Relleno tipo Excel: arrastrar el cuadrito de la selección. Primero se muestra una vista previa
+  // y solo al confirmar se escriben las celdas (con un paso de deshacer).
+  const [fill, setFill] = useState(null); // { source, target, confirming }
+  const fillRef = useRef(null);
+  fillRef.current = fill;
+  const improvedKeys = useMemo(
+    () => new Set(sheet.scores.filter((score) => score.improved).map((score) => `${score.studentId}:${score.gradeItemId}`)),
+    [sheet.scores],
+  );
 
   const rowCount = students.length;
   const colCount = items.length;
@@ -113,6 +127,15 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
   useEffect(() => {
     const stop = () => {
       dragging.current = false;
+      const current = fillRef.current;
+      if (current && !current.confirming) {
+        const grew =
+          current.target.top !== current.source.top ||
+          current.target.bottom !== current.source.bottom ||
+          current.target.left !== current.source.left ||
+          current.target.right !== current.source.right;
+        setFill(grew ? { ...current, confirming: true } : null);
+      }
     };
     window.addEventListener('mouseup', stop);
     return () => window.removeEventListener('mouseup', stop);
@@ -166,8 +189,67 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
     return entries;
   };
 
+  /** Valor que tendría una celda del área de relleno: repite el bloque de origen. */
+  const fillRaw = (source, row, col) => {
+    const sourceRow = wrap(row, source.top, source.bottom - source.top + 1);
+    const sourceCol = wrap(col, source.left, source.right - source.left + 1);
+    return cellText(getCell(students[sourceRow].id, items[sourceCol].id));
+  };
+
+  const fillEntries = () => {
+    if (!fill) return [];
+    const entries = [];
+    for (let row = fill.target.top; row <= fill.target.bottom; row += 1) {
+      for (let col = fill.target.left; col <= fill.target.right; col += 1) {
+        if (!inArea(fill.source, row, col)) entries.push({ studentId: students[row].id, itemId: items[col].id, raw: fillRaw(fill.source, row, col) });
+      }
+    }
+    return entries;
+  };
+
+  const applyFill = () => {
+    const entries = fillEntries();
+    setCells(entries);
+    dispatch({ type: 'SELECT_RANGE', anchor: { row: fill.target.top, col: fill.target.left }, active: { row: fill.target.bottom, col: fill.target.right } });
+    setFill(null);
+    focusGrid();
+  };
+
+  const cancelFill = () => {
+    setFill(null);
+    focusGrid();
+  };
+
+  const startFill = (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragging.current = false;
+    setFill({ source: range, target: range, confirming: false });
+  };
+
+  /** Como en Excel: el relleno crece solo en la dirección (vertical u horizontal) en que más se arrastró. */
+  const extendFill = (row, col) => {
+    const { source } = fill;
+    const rowsOut = row < source.top ? source.top - row : row > source.bottom ? row - source.bottom : 0;
+    const colsOut = col < source.left ? source.left - col : col > source.right ? col - source.right : 0;
+    const target =
+      rowsOut === 0 && colsOut === 0
+        ? source
+        : rowsOut >= colsOut
+          ? { ...source, top: Math.min(source.top, row), bottom: Math.max(source.bottom, row) }
+          : { ...source, left: Math.min(source.left, col), right: Math.max(source.right, col) };
+    setFill({ ...fill, target });
+  };
+
   const onKeyDown = (event) => {
     if (state.editing) return;
+    if (fill?.confirming) {
+      event.preventDefault();
+      if (event.key === 'Enter') applyFill();
+      else if (event.key === 'Escape') cancelFill();
+      return;
+    }
     const mod = event.ctrlKey || event.metaKey;
     const { row, col } = active;
     const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
@@ -251,6 +333,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
   const onCellMouseDown = (event, row, col) => {
     if (event.button !== 0) return;
     event.preventDefault(); // sin selección de texto del navegador
+    if (fill?.confirming) return;
     if (state.editing) commitEdit(0, 0);
     select(row, col, event.shiftKey);
     dragging.current = true;
@@ -258,8 +341,12 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
   };
 
   const onCellMouseEnter = (row, col) => {
-    if (dragging.current) select(row, col, true);
+    if (fill && !fill.confirming) extendFill(row, col);
+    else if (dragging.current) select(row, col, true);
   };
+
+  const scrollBy = (direction) => containerRef.current?.scrollBy({ left: direction * 336, behavior: 'smooth' });
+  const fillCount = fill?.confirming ? fillEntries().length : 0;
 
   const valueOf = (student) => (item) => {
     const cell = getCell(student.id, item.id);
@@ -273,6 +360,22 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {fill?.confirming && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+          <span>
+            <span className="font-semibold">Vista previa del relleno:</span> {fillCount} celda{fillCount === 1 ? '' : 's'} (en azul punteado). Revisa los valores antes de
+            aplicarlos.
+          </span>
+          <span className="ml-auto flex gap-2">
+            <button type="button" onClick={cancelFill} className="rounded-full border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100">
+              Cancelar <span className="text-blue-500">(Esc)</span>
+            </button>
+            <button type="button" onClick={applyFill} className="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700">
+              Aplicar relleno <span className="text-blue-200">(Enter)</span>
+            </button>
+          </span>
+        </div>
+      )}
       <div
         ref={containerRef}
         tabIndex={0}
@@ -284,7 +387,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
         onKeyDown={onKeyDown}
         onCopy={onCopy}
         onPaste={onPaste}
-        className="min-h-0 flex-1 overflow-auto bg-white focus:outline-none [scroll-padding-left:304px] [scroll-padding-top:48px]"
+        className="min-h-0 flex-1 overflow-x-scroll overflow-y-auto bg-white [scrollbar-color:var(--color-zinc-400)_var(--color-zinc-100)] focus:outline-none [scroll-padding-left:304px] [scroll-padding-top:48px]"
       >
         <table className="border-separate border-spacing-0 text-sm">
           <thead>
@@ -352,6 +455,10 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
                     const cell = getCell(student.id, item.id);
                     const isActive = row === active.row && col === active.col;
                     const inRange = rowSelected && col >= range.left && col <= range.right;
+                    const improved = improvedKeys.has(`${student.id}:${item.id}`) && !cell.dirty && !cell.error;
+                    const previewRaw = fill && inArea(fill.target, row, col) && !inArea(fill.source, row, col) ? fillRaw(fill.source, row, col) : null;
+                    const previewError = previewRaw !== null && parseInput(previewRaw, item.maxScore).error;
+                    const showHandle = !readOnly && !state.editing && !fill && row === range.bottom && col === range.right;
                     return (
                       <td
                         key={item.id}
@@ -367,10 +474,35 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
                           readOnly ? 'text-zinc-500' : 'text-zinc-900',
                           inRange && !isActive && 'bg-blue-50',
                           cell.error && 'bg-red-50 text-red-700',
+                          improved && !inRange && 'bg-sky-50',
+                          improved && 'font-semibold text-blue-700',
+                          previewRaw !== null && 'bg-blue-50/70 italic outline-1 -outline-offset-2 outline-blue-400 outline-dashed',
+                          previewError && 'bg-red-50 text-red-600',
                           isActive && 'z-[5] shadow-[inset_0_0_0_2px_var(--color-blue-500)]',
                         )}
+                        title={improved ? 'Nota mejorada (ver historial con el botón Mejora)' : undefined}
                       >
-                        {cell.error ? cell.raw : cell.value === null ? '' : formatScore(cell.value)}
+                        {improved && (
+                          <span
+                            className="absolute top-0 left-0 size-0 border-t-[7px] border-r-[7px] border-t-blue-600 border-r-transparent"
+                            aria-label="Nota mejorada"
+                          />
+                        )}
+                        {previewRaw !== null
+                          ? previewRaw
+                          : cell.error
+                            ? cell.raw
+                            : cell.value === null
+                              ? ''
+                              : formatScore(cell.value)}
+                        {showHandle && (
+                          <span
+                            onMouseDown={startFill}
+                            className="absolute -right-1 -bottom-1 z-20 size-2.5 cursor-crosshair border border-white bg-blue-600"
+                            title="Arrastra para rellenar"
+                            aria-label="Rellenar arrastrando"
+                          />
+                        )}
                         {(cell.dirty || cell.saving) && (
                           <span
                             className={cn('absolute top-1 right-1 size-1.5 rounded-full', cell.saving ? 'animate-pulse bg-blue-500' : 'bg-amber-500')}
@@ -446,11 +578,32 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
             {activeCell.error === 'SCORE_OUT_OF_RANGE' && ` (0 a ${formatScore(activeItem.maxScore)})`}
           </span>
         )}
+        {improvedKeys.has(`${activeStudent.id}:${activeItem.id}`) && <span className="shrink-0 font-medium text-blue-700">Nota mejorada</span>}
         {range.bottom - range.top + (range.right - range.left) > 0 && (
           <span className="ml-auto shrink-0">
             {(range.bottom - range.top + 1) * (range.right - range.left + 1)} celdas seleccionadas
           </span>
         )}
+        <span className={cn('flex shrink-0 items-center gap-0.5', range.bottom - range.top + (range.right - range.left) === 0 && 'ml-auto')}>
+          <button
+            type="button"
+            onClick={() => scrollBy(-1)}
+            className="flex size-6 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100"
+            aria-label="Desplazar a la izquierda"
+            title="Desplazar a la izquierda"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollBy(1)}
+            className="flex size-6 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100"
+            aria-label="Desplazar a la derecha"
+            title="Desplazar a la derecha"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </span>
       </div>
     </div>
   );

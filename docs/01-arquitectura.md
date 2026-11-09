@@ -73,6 +73,9 @@ backend/
 │   │   │   └── submission.stateMachine.js  # Transiciones válidas de estado
 │   │   ├── notifications/        # Persistencia + emisión en tiempo real
 │   │   ├── messages/             # Mensajes por asunto (tareas, ausencias) con permisos por rol
+│   │   ├── feed/                 # Muro de Inicio: publica la administración; todos reaccionan y comentan
+│   │   ├── meetings/             # Reuniones virtuales por clase, con código único por reunión
+│   │   ├── calendar/             # Calendario general (eventos de la administración + reuniones + entregas)
 │   │   ├── files/                # Metadatos de archivos y URLs firmadas
 │   │   └── finance/              # Cargos, pagos, estados de cuenta
 │   │

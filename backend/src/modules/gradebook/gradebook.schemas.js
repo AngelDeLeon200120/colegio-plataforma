@@ -55,3 +55,14 @@ export const saveScoresBody = z.object({
     .min(1)
     .max(MAX_CELLS_PER_SAVE, `Máximo ${MAX_CELLS_PER_SAVE} celdas por guardado`),
 });
+
+// Mejora de una nota (aunque esté aprobada). El rango se valida en el servicio.
+export const improveBody = z.object({
+  unitId: id,
+  gradeItemId: id,
+  studentId: id,
+  score: z.number().nullable(),
+  note: z.string().trim().max(255).nullable().optional(),
+});
+
+export const historyQuery = z.object({ gradeItemId: id, studentId: id });

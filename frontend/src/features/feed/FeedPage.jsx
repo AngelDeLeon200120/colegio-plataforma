@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
   CalendarDays,
@@ -159,7 +159,7 @@ function Comment({ comment, canDelete }) {
   );
 }
 
-function PostCard({ post }) {
+function PostCard({ post, focused }) {
   const user = useAuthStore((state) => state.user);
   const isAdmin = user.role === 'ADMIN';
   const react = useReact();
@@ -190,7 +190,14 @@ function PostCard({ post }) {
   };
 
   return (
-    <article className={cn('overflow-hidden rounded-lg border bg-white', post.isPinned ? 'border-amber-300' : 'border-zinc-300')}>
+    <article
+      id={`post-${post.id}`}
+      className={cn(
+        'scroll-mt-4 overflow-hidden rounded-lg border bg-white transition-shadow',
+        post.isPinned ? 'border-amber-300' : 'border-zinc-300',
+        focused && 'ring-2 ring-brand-500 ring-offset-2',
+      )}
+    >
       {post.isPinned && (
         <p className="flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs font-medium text-amber-800">
           <Pin className="size-3.5" /> Publicación fijada
@@ -394,6 +401,14 @@ export function FeedPage() {
   const user = useAuthStore((state) => state.user);
   const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useFeed();
   useFeedLive();
+  // Al abrir una notificación (?post=ID) se lleva a esa publicación y se resalta
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('post');
+  const loaded = Boolean(data);
+  useEffect(() => {
+    if (!focusId || !loaded) return;
+    document.getElementById(`post-${focusId}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [focusId, loaded]);
 
   const first = data?.pages[0];
   const pinned = first?.pinned ?? [];
@@ -427,7 +442,7 @@ export function FeedPage() {
           )}
 
           {[...pinned, ...posts].map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} focused={String(post.id) === focusId} />
           ))}
 
           {hasNextPage && (

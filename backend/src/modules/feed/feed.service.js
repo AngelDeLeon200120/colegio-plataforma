@@ -1,8 +1,10 @@
 import { AppError } from '../../core/errors/AppError.js';
+import { withTransaction } from '../../core/db/transaction.js';
 import { matchesSignature } from '../../core/security/fileSignature.js';
 import { emitToRoom } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
 import { filesService } from '../files/files.service.js';
+import { notificationsService } from '../notifications/notifications.service.js';
 import { feedRepository } from './feed.repository.js';
 
 export const POST_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -39,9 +41,33 @@ export const feedService = {
     if (image && !matchesSignature(image)) {
       throw new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', 'La imagen no es válida. Usa JPG, PNG, GIF o WEBP.');
     }
+    // Disco antes de la transacción (no es transaccional), como en actividades y entregas
     const imageFileId = image ? await filesService.store(user, image, 'POST_IMAGE') : null;
-    const id = await feedRepository.insertPost({ authorId: user.id, body, imageFileId, isPinned });
-    announce(user, { postId: id, kind: 'created' });
+
+    const id = await withTransaction(async (connection, afterCommit) => {
+      const repo = feedRepository.withConnection(connection);
+      const postId = await repo.insertPost({ authorId: user.id, body, imageFileId, isPinned });
+
+      // Aviso a toda la comunidad (menos quien publica). Fijada = prioridad alta.
+      const recipients = await repo.findAudienceUserIds(user.id);
+      const author = await repo.findPost(user.id, postId);
+      const preview = body.replace(/\s+/g, ' ').trim();
+      const notifications = await notificationsService.createForUsers(connection, recipients, {
+        type: 'POST',
+        priority: isPinned ? 'HIGH' : 'NORMAL',
+        title: `${isPinned ? 'Aviso importante' : 'Nueva publicación'} de ${author.author.firstName} ${author.author.lastName}`.slice(0, 200),
+        body: (preview.length > 160 ? `${preview.slice(0, 157)}…` : preview) + (imageFileId ? ' (con imagen)' : ''),
+        entityType: 'post',
+        entityId: postId,
+        actionUrl: `/home?post=${postId}`,
+        dedupeKey: `post:${postId}`,
+      });
+      afterCommit(() => {
+        notificationsService.publish(notifications);
+        announce(user, { postId, kind: 'created' });
+      });
+      return postId;
+    });
     const [post] = await withComments([await loadPost(user, id)]);
     return post;
   },

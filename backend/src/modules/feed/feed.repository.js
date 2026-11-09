@@ -110,6 +110,15 @@ class FeedRepository extends BaseRepository {
     return row && toComment(row);
   }
 
+  /** Toda la comunidad con acceso activo: a quienes avisa una publicación nueva. */
+  async findAudienceUserIds(excludeUserId) {
+    const rows = await this.query(
+      `SELECT id FROM users WHERE school_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL AND id <> ?`,
+      [this.schoolId, excludeUserId],
+    );
+    return rows.map((row) => row.id);
+  }
+
   async insertPost({ authorId, body, imageFileId, isPinned }) {
     const result = await this.query(
       'INSERT INTO posts (school_id, author_id, body, image_file_id, is_pinned) VALUES (?, ?, ?, ?, ?)',

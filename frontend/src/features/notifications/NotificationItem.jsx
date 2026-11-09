@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   Inbox,
+  Megaphone,
   MessageSquare,
   RotateCcw,
   Video,
@@ -23,6 +24,7 @@ const LOOK = {
   ACTIVITY_DUE_SOON: { icon: CalendarClock, className: 'bg-violet-50 text-violet-600' },
   MESSAGE: { icon: MessageSquare, className: 'bg-brand-50 text-brand-700' },
   MEETING: { icon: Video, className: 'bg-violet-50 text-violet-600' },
+  POST: { icon: Megaphone, className: 'bg-amber-50 text-amber-700' },
 };
 const DEFAULT_LOOK = { icon: Bell, className: 'bg-zinc-100 text-zinc-500' };
 

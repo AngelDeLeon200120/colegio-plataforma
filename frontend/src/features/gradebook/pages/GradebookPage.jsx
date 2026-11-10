@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ChevronRight, Lock, Plus, RefreshCw, Sparkles, Upload } from 'lucide-react';
@@ -11,7 +11,7 @@ import { GradeGrid } from '../components/GradeGrid';
 import { ImportDialog } from '../components/ImportDialog';
 import { ImproveDialog } from '../components/ImproveDialog';
 import { SaveIndicator } from '../components/SaveIndicator';
-import { gradebookKeys, useGradebookLiveUpdates, useGradebookSheet } from '../hooks';
+import { gradebookKeys, useGradebookLiveUpdates, useGradebookSheet, usePaymentStatus } from '../hooks';
 import { useGradeSheet } from '../useGradeSheet';
 
 function UnitTabs({ units, currentId, onChange }) {
@@ -46,6 +46,12 @@ function Sheet({ courseId, sheet, sheetKey }) {
   const [importOpen, setImportOpen] = useState(false);
   const [notice, setNotice] = useState(null);
   useGradebookLiveUpdates(courseId, sheetKey);
+  // Pagos pendientes de la unidad: al docente se le tachan esas notas (solo visual)
+  const { data: paymentData } = usePaymentStatus(courseId, sheet.unit.id);
+  const payment = useMemo(
+    () => paymentData && { unpaid: new Set(paymentData.unpaidStudentIds), obscure: paymentData.obscureScores },
+    [paymentData],
+  );
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -85,6 +91,11 @@ function Sheet({ courseId, sheet, sheetKey }) {
         />
         {notice && <span className="text-xs font-medium text-emerald-700">{notice}</span>}
         {improveNotice && <span className="text-xs font-medium text-amber-700">{improveNotice}</span>}
+        {payment?.unpaid.size > 0 && (
+          <span className="text-xs text-red-700" title="Se quita sola cuando la administración registra el pago">
+            {payment.unpaid.size} estudiante{payment.unpaid.size === 1 ? '' : 's'} con pago pendiente en esta unidad
+          </span>
+        )}
         {!sheet.readOnly && (
           <div className="ml-auto flex gap-2">
             <Button
@@ -118,6 +129,7 @@ function Sheet({ courseId, sheet, sheetKey }) {
         grid={grid}
         onEditItem={(item) => setColumnDialog({ item })}
         onAddItem={() => setColumnDialog({ item: null })}
+        payment={payment}
       />
 
       <footer className="hidden flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-200 bg-white px-6 py-1.5 text-[11px] text-zinc-500 lg:flex">

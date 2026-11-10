@@ -1,5 +1,6 @@
 import { AppError } from '../../core/errors/AppError.js';
 import { withTransaction } from '../../core/db/transaction.js';
+import { localClock } from '../../core/utils/dates.js';
 import { emitToRoom, emitToUsers } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
 import { assertCourseStaff } from '../academic/academic.access.js';
@@ -206,6 +207,22 @@ export const gradebookService = {
 
     const history = await gradebookRepository.listChanges(gradeItemId, studentId);
     return { ...result, history };
+  },
+
+  /**
+   * Quién tiene pagos pendientes en la unidad. Al docente se le muestran sus notas tachadas;
+   * solo es visual: guardar, importar y calcular sigue igual.
+   */
+  async paymentStatus(user, courseId, { unitId }) {
+    const course = await loadCourse(user, courseId);
+    const unit = await loadUnit(course, unitId);
+    const timeZone = await academicRepository.findSchoolTimezone();
+    const unpaidStudentIds = await gradebookRepository.findUnpaidStudentIds({
+      sectionId: course.sectionId,
+      unitId: unit.id,
+      today: localClock(new Date(), timeZone).date,
+    });
+    return { unpaidStudentIds, obscureScores: user.role === 'TEACHER' };
   },
 
   async history(user, courseId, { gradeItemId, studentId }) {

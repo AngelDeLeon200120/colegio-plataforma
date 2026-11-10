@@ -13,6 +13,10 @@ export const gradebookController = {
     res.json({ data: await gradebookService.improve(req.user, req.valid.params.courseId, req.valid.body) });
   },
 
+  async paymentStatus(req, res) {
+    res.json({ data: await gradebookService.paymentStatus(req.user, req.valid.params.courseId, req.valid.query) });
+  },
+
   async history(req, res) {
     res.json({ data: await gradebookService.history(req.user, req.valid.params.courseId, req.valid.query) });
   },

@@ -186,6 +186,24 @@ class GradebookRepository extends BaseRepository {
     return rows.map((row) => row.guardian_id);
   }
 
+  /**
+   * Estudiantes de la sección con un cobro de esa unidad (vence entre su inicio y su fin)
+   * que ya venció y sigue con saldo. Solo ids: el cuadro no expone montos.
+   */
+  async findUnpaidStudentIds({ sectionId, unitId, today }) {
+    const rows = await this.query(
+      `SELECT DISTINCT ch.student_id
+         FROM charges ch
+         JOIN academic_units u ON u.school_id = ch.school_id AND u.id = ?
+         JOIN enrollments e    ON e.school_id = ch.school_id AND e.student_id = ch.student_id AND e.section_id = ? AND e.status = 'ACTIVE'
+        WHERE ch.school_id = ? AND ch.status IN ('PENDING', 'PARTIAL', 'OVERDUE') AND ch.balance > 0
+          AND ch.due_date BETWEEN u.starts_on AND u.ends_on
+          AND ch.due_date <= ?`,
+      [unitId, sectionId, this.schoolId, today],
+    );
+    return rows.map((row) => row.student_id);
+  }
+
   async findStudentsByCodes(codes) {
     if (!codes.length) return [];
     const rows = await this.query(

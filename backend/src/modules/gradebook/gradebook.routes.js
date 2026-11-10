@@ -12,6 +12,7 @@ import {
   improveBody,
   importParams,
   itemParams,
+  paymentStatusQuery,
   saveScoresBody,
   sheetQuery,
   templateQuery,
@@ -37,6 +38,12 @@ gradebookRouter.post(
   staff,
   validate({ params: courseParams, body: improveBody }),
   controller.improve,
+);
+gradebookRouter.get(
+  '/courses/:courseId/gradebook/payment-status',
+  staff,
+  validate({ params: courseParams, query: paymentStatusQuery }),
+  controller.paymentStatus,
 );
 gradebookRouter.get('/courses/:courseId/gradebook/history', staff, validate({ params: courseParams, query: historyQuery }), controller.history);
 

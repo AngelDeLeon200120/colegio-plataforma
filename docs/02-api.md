@@ -99,6 +99,7 @@ Pendiente: crear o cerrar el ciclo lectivo desde la interfaz (hoy se hace en la 
 | POST | `/courses/:id/grade-items/reorder` | T* | `{ unitId, order: [itemId…] }` |
 | PUT | `/courses/:id/gradebook/scores` | T* | **Guardado por lotes** (pegado multi-celda, autosave) — ver abajo |
 | POST | `/courses/:id/gradebook/improvements` | T* | **Mejora**: `{ unitId, gradeItemId, studentId, score, note? }`. Cambia la nota aunque la entrega esté aprobada (si la columna viene de una actividad, también la nota de la entrega aprobada). Guarda el historial y **no** crea notificaciones. Misma nota → `422 NO_CHANGE` |
+| GET | `/courses/:id/gradebook/payment-status?unitId=` | T*, A | `{ unpaidStudentIds[], obscureScores }`: estudiantes de la sección con un cobro de la unidad (vence entre su inicio y su fin) ya vencido y con saldo. Solo ids, sin montos. Al docente (`obscureScores: true`) la hoja le muestra esas notas tachadas y borrosas; es solo visual |
 | GET | `/courses/:id/gradebook/history?gradeItemId=&studentId=` | T* | `{ history[] }` de mejoras de una celda (antes → después, motivo, quién y cuándo) |
 | PATCH | `/grade-items/:id` `{ isPublished }` | T* | Hace visible (u oculta) la columna para S/P. Pendiente: notificar al publicar |
 | GET | `/me/courses` | T, A | Cursos del ciclo activo (docente: los asignados) con número de estudiantes |
@@ -355,6 +356,7 @@ Todos los eventos servidor → cliente comparten la misma forma:
 | `feed:changed` | `school:` | `{ postId, kind, by }` | Refresca el muro de Inicio |
 | `meeting:changed` | `user:` de la clase, el docente y el autor | `{ meetingId, kind }` | Refresca reuniones y calendario |
 | `calendar:changed` | `school:` | `{ eventId, by }` | Refresca el calendario |
+| `finance:status_changed` | `school:` | `{}` | Tras cualquier cambio de cobros: el cuadro de notas abierto vuelve a consultar los pagos pendientes |
 | `session:revoked` | `user:` | `{ reason }` | Cierra sesión en el cliente |
 
 ### 3.4 Cliente → servidor (con ack)

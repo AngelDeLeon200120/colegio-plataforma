@@ -3,6 +3,8 @@ import { api, apiDownload } from '@/lib/apiClient';
 export const gradebookApi = {
   myCourses: () => api('/me/courses'),
 
+  paymentStatus: (courseId, unitId) => api(`/courses/${courseId}/gradebook/payment-status?unitId=${unitId}`),
+
   getSheet: (courseId, unitId) => api(`/courses/${courseId}/gradebook${unitId ? `?unitId=${unitId}` : ''}`),
 
   saveCells: (courseId, { unitId, cells }) =>

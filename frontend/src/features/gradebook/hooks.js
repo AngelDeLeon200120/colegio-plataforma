@@ -24,6 +24,29 @@ export function useGradebookSheet(courseId, unitId) {
   });
 }
 
+/**
+ * Estudiantes con pagos pendientes en la unidad (solo ids). Consulta aparte de la hoja:
+ * se refresca sola cuando la administración registra un pago, sin tocar las celdas editadas.
+ */
+export function usePaymentStatus(courseId, unitId) {
+  const queryClient = useQueryClient();
+  const queryKey = ['gradebook-payments', String(courseId), String(unitId)];
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ['gradebook-payments'] });
+    socket.on('finance:status_changed', refresh);
+    return () => socket.off('finance:status_changed', refresh);
+  }, [queryClient]);
+
+  return useQuery({
+    queryKey,
+    queryFn: () => gradebookApi.paymentStatus(courseId, unitId),
+    enabled: Boolean(courseId && unitId),
+    staleTime: 60_000,
+  });
+}
+
 /** Mezcla celdas guardadas (propias o de otro editor) en la caché de la hoja. */
 export function mergeScores(sheet, cells) {
   if (!sheet) return sheet;

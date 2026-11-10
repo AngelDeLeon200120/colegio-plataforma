@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authorize } from '../../core/middleware/authorize.js';
 import { validate } from '../../core/middleware/validate.js';
+import { emitToRoom } from '../../realtime/emitter.js';
+import { rooms } from '../../realtime/rooms.js';
 import {
   adjustChargeBody,
   chargeParams,
@@ -27,6 +29,17 @@ financeRouter.get('/me/finance', authorize('PARENT'), validate({ query: familyQu
 // Administración
 const admin = authorize('ADMIN');
 financeRouter.use('/finance', admin);
+
+// Cualquier cambio de cobros (cargos, pagos, reversiones) puede cambiar quién tiene pagos pendientes.
+// Aviso sin datos a la sala del colegio: el cuadro de notas abierto vuelve a consultar el estado.
+financeRouter.use('/finance', (req, res, next) => {
+  if (req.method !== 'GET') {
+    res.on('finish', () => {
+      if (res.statusCode < 400) emitToRoom(rooms.school(req.user.schoolId), 'finance:status_changed', {});
+    });
+  }
+  next();
+});
 
 financeRouter.get('/finance/students', validate({ query: portfolioQuery }), async (req, res) => {
   res.json({ data: await financeService.portfolio(req.valid.query) });

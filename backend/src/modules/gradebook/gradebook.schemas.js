@@ -66,3 +66,5 @@ export const improveBody = z.object({
 });
 
 export const historyQuery = z.object({ gradeItemId: id, studentId: id });
+
+export const paymentStatusQuery = z.object({ unitId: id });

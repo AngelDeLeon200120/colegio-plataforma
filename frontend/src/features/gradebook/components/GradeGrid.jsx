@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus, Wallet } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { formatScore } from '@/lib/format';
 import { ERROR_LABELS, PASSING_SCORE, accumulatedTotal, average, cellText, parseInput, parseTsv, round, toTsv } from '../gridModel';
@@ -98,7 +98,10 @@ const wrap = (index, start, size) => start + ((((index - start) % size) + size) 
 
 const inArea = (area, row, col) => area && row >= area.top && row <= area.bottom && col >= area.left && col <= area.right;
 
-export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
+// Nota de un estudiante con pagos pendientes: tachada y borrosa para el docente (solo visual)
+const OBSCURED = 'text-zinc-400 line-through decoration-red-500 decoration-2 blur-[2.5px]';
+
+export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
   const { items, students, readOnly } = sheet;
   const { state, dispatch, getCell, setCells, undo } = grid;
   const containerRef = useRef(null);
@@ -436,6 +439,8 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
             {students.map((student, row) => {
               const rowSelected = row >= range.top && row <= range.bottom;
               const total = totals[row];
+              const unpaid = Boolean(payment?.unpaid.has(student.id));
+              const obscured = unpaid && payment.obscure;
               return (
                 <tr key={student.id}>
                   <td className={cn('sticky left-0 z-10 border-r border-b border-zinc-200 bg-white px-3 font-mono text-xs text-zinc-500', rowSelected && 'bg-blue-50')}>
@@ -448,7 +453,19 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
                       rowSelected && 'bg-blue-50',
                     )}
                   >
-                    {student.lastName}, {student.firstName}
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate">
+                        {student.lastName}, {student.firstName}
+                      </span>
+                      {unpaid && (
+                        <span
+                          className="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700"
+                          title="Tiene pagos pendientes de esta unidad"
+                        >
+                          <Wallet className="size-3" /> Pago pendiente
+                        </span>
+                      )}
+                    </span>
                   </th>
 
                   {items.map((item, col) => {
@@ -488,13 +505,15 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
                             aria-label="Nota mejorada"
                           />
                         )}
-                        {previewRaw !== null
-                          ? previewRaw
-                          : cell.error
-                            ? cell.raw
-                            : cell.value === null
-                              ? ''
-                              : formatScore(cell.value)}
+                        {previewRaw !== null ? (
+                          previewRaw
+                        ) : cell.error ? (
+                          cell.raw
+                        ) : cell.value === null ? (
+                          ''
+                        ) : (
+                          <span className={cn(obscured && OBSCURED)}>{formatScore(cell.value)}</span>
+                        )}
                         {showHandle && (
                           <span
                             onMouseDown={startFill}
@@ -531,7 +550,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem }) {
                       total !== null && total < PASSING_SCORE ? 'text-red-600' : 'text-zinc-900',
                     )}
                   >
-                    {total === null ? '—' : formatScore(round(total))}
+                    {total === null ? '—' : <span className={cn(obscured && OBSCURED)}>{formatScore(round(total))}</span>}
                   </td>
                   {!readOnly && <td className="border-b border-zinc-200" />}
                 </tr>

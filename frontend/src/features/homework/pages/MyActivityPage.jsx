@@ -55,7 +55,13 @@ function StatusCallout({ activity, isParent, studentName }) {
       <Callout
         tone="green"
         icon={CheckCircle2}
-        title={score !== null ? `Aprobada · ${formatScore(score)} de ${formatScore(activity.maxScore)}` : 'Aprobada'}
+        title={
+          activity.submission.scoreWithheld
+            ? 'Aprobada · Nota pendiente'
+            : score !== null
+              ? `Aprobada · ${formatScore(score)} de ${formatScore(activity.maxScore)}`
+              : 'Aprobada'
+        }
       >
         {lastFeedback && <p className="whitespace-pre-line">“{lastFeedback}”</p>}
       </Callout>

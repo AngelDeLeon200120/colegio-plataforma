@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus, Wallet } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
 import { cn } from '@/lib/cn';
-import { formatScore } from '@/lib/format';
+import { formatDate, formatMoney, formatScore } from '@/lib/format';
 import { ERROR_LABELS, PASSING_SCORE, accumulatedTotal, average, cellText, parseInput, parseTsv, round, toTsv } from '../gridModel';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -111,6 +113,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
   const [fill, setFill] = useState(null); // { source, target, confirming }
   const fillRef = useRef(null);
   fillRef.current = fill;
+  const [paymentDetail, setPaymentDetail] = useState(null); // estudiante cuyo detalle de pago se muestra
   const improvedKeys = useMemo(
     () => new Set(sheet.scores.filter((score) => score.improved).map((score) => `${score.studentId}:${score.gradeItemId}`)),
     [sheet.scores],
@@ -458,12 +461,14 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                         {student.lastName}, {student.firstName}
                       </span>
                       {unpaid && (
-                        <span
-                          className="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700"
-                          title="Tiene pagos pendientes de esta unidad"
+                        <button
+                          type="button"
+                          onClick={() => setPaymentDetail(student)}
+                          className="ml-auto flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100"
+                          title="Ver el detalle del pago pendiente"
                         >
                           <Wallet className="size-3" /> Pago pendiente
-                        </span>
+                        </button>
                       )}
                     </span>
                   </th>
@@ -624,6 +629,63 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
           </button>
         </span>
       </div>
+
+      {paymentDetail && (
+        <PaymentDetailDialog student={paymentDetail} charges={payment?.details[paymentDetail.id] ?? []} onClose={() => setPaymentDetail(null)} />
+      )}
     </div>
+  );
+}
+
+/** Detalle del pago pendiente de un estudiante en la unidad (para el docente). */
+function PaymentDetailDialog({ student, charges, onClose }) {
+  const total = charges.reduce((sum, charge) => sum + charge.balance, 0);
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Pago pendiente · ${student.firstName} ${student.lastName}`}
+      description="Cobros de esta unidad vencidos y sin pagar. Sus notas se ven tachadas hasta que la administración registre el pago."
+      footer={<Button onClick={onClose}>Cerrar</Button>}
+    >
+      {charges.length === 0 ? (
+        <p className="text-sm text-zinc-500">Ya no tiene pagos pendientes en esta unidad.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="text-xs text-zinc-500">
+            <tr>
+              <th className="pb-2 text-left font-medium">Concepto</th>
+              <th className="pb-2 text-left font-medium">Venció</th>
+              <th className="pb-2 text-right font-medium">Saldo</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {charges.map((charge) => (
+              <tr key={`${charge.description}-${charge.dueDate}`}>
+                <td className="py-2 pr-2 text-zinc-800">
+                  {charge.description}
+                  {charge.status === 'PARTIAL' && <span className="ml-1.5 text-xs text-amber-700">(abono parcial)</span>}
+                </td>
+                <td className="py-2 pr-2 whitespace-nowrap text-zinc-600">
+                  {formatDate(charge.dueDate)}
+                  <span className="block text-xs text-red-600">
+                    {charge.daysOverdue === 0 ? 'vence hoy' : `${charge.daysOverdue} día${charge.daysOverdue === 1 ? '' : 's'} de atraso`}
+                  </span>
+                </td>
+                <td className="py-2 text-right font-medium whitespace-nowrap text-zinc-900 tabular-nums">{formatMoney(charge.balance)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-zinc-200">
+              <td colSpan={2} className="pt-2 text-right text-xs font-medium text-zinc-500">
+                Total pendiente
+              </td>
+              <td className="pt-2 text-right font-semibold whitespace-nowrap text-red-700 tabular-nums">{formatMoney(total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+    </Dialog>
   );
 }

@@ -25,7 +25,13 @@ function useReportCard(studentId, unitId, enabled) {
 const toneFor = (percent, passing) => (percent === null ? 'text-zinc-400' : percent < passing ? 'text-red-600' : 'text-emerald-700');
 
 /** "29/30" a mitad de unidad (con su %), "85/100" cuando ya está todo publicado. */
+/** Unidad con pagos vencidos: en lugar de la nota se muestra solo "Pendiente". */
+function Pending({ className }) {
+  return <span className={cn('font-medium text-amber-700', className)}>Pendiente</span>;
+}
+
 function ResultBadge({ result, passing }) {
+  if (result.withheld) return <Pending className="text-base" />;
   if (result.percent === null) return <span className="text-lg font-semibold text-zinc-400">—</span>;
   const partial = result.published < 100;
   return (
@@ -59,7 +65,9 @@ function CourseCard({ course, passing }) {
               <tr key={item.id}>
                 <td className="px-4 py-2 text-zinc-700">{item.name}</td>
                 <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">
-                  {item.isExcused ? (
+                  {item.withheld ? (
+                    <Pending />
+                  ) : item.isExcused ? (
                     <span className="text-zinc-500">Exonerado</span>
                   ) : item.score === null ? (
                     <span className="text-zinc-400">Sin nota</span>
@@ -156,12 +164,16 @@ export function ReportCardPage() {
                 <p className="text-xs font-medium text-zinc-500">
                   {data.complete ? `Promedio · ${data.unit.name}` : `Rendimiento hasta ahora · ${data.unit.name}`}
                 </p>
-                <p className={cn('text-3xl font-semibold tabular-nums', toneFor(data.average, data.passingScore))}>
-                  {data.average === null ? '—' : formatScore(data.average)}
-                  {data.average !== null && <span className="text-sm font-normal text-zinc-400">{data.complete ? '/100' : ' %'}</span>}
-                </p>
+                {data.unit.withheld ? (
+                  <p className="text-3xl font-semibold text-amber-700">Pendiente</p>
+                ) : (
+                  <p className={cn('text-3xl font-semibold tabular-nums', toneFor(data.average, data.passingScore))}>
+                    {data.average === null ? '—' : formatScore(data.average)}
+                    {data.average !== null && <span className="text-sm font-normal text-zinc-400">{data.complete ? '/100' : ' %'}</span>}
+                  </p>
+                )}
               </div>
-              <p className="max-w-md text-xs text-zinc-500">
+              <p className={cn('max-w-md text-xs text-zinc-500', data.unit.withheld && 'hidden')}>
                 {data.complete
                   ? `Zona sobre 100 en cada materia; se aprueba con ${data.passingScore}.`
                   : `La unidad sigue en curso: cada materia muestra los puntos obtenidos sobre los que su docente ya publicó (se aprueba con el ${data.passingScore} %). La zona final se completa al publicarse todas las evaluaciones.`}
@@ -202,7 +214,7 @@ export function ReportCardPage() {
                             const cell = row.units[unit.id];
                             return (
                               <td key={unit.id} className={cn('px-4 py-2 text-right font-medium tabular-nums', toneFor(cell.percent, data.passingScore))}>
-                                {cell.percent === null ? '—' : formatScore(cell.total)}
+                                {cell.withheld ? <Pending className="text-xs" /> : cell.percent === null ? '—' : formatScore(cell.total)}
                                 {cell.percent !== null && cell.published < 100 && (
                                   <span className="text-xs font-normal text-zinc-400"> /{formatScore(cell.published)}</span>
                                 )}

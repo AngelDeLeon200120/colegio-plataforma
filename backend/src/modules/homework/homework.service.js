@@ -4,6 +4,7 @@ import { matchesSignature } from '../../core/security/fileSignature.js';
 import { emitToRoom, emitToUsers } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
 import { filesService } from '../files/files.service.js';
+import { unpaidUnitsOf } from '../finance/finance.holds.js';
 import { notificationsService } from '../notifications/notifications.service.js';
 import { assertTransition } from '../submissions/submission.stateMachine.js';
 import { submissionsRepository } from '../submissions/submissions.repository.js';
@@ -42,10 +43,22 @@ function submitBlocker(activity, now = new Date()) {
   return null;
 }
 
+/**
+ * Unidad con pagos vencidos: la nota no sale del servidor y la vista muestra "Pendiente".
+ * El estado de la entrega (aprobada, en revisión...) sí se ve.
+ */
+function withholdScore(activity, withheldUnits) {
+  if (!withheldUnits.has(activity.unit.id)) return activity;
+  const { submission } = activity;
+  return { ...activity, submission: { ...submission, score: null, scoreWithheld: submission.score !== null } };
+}
+
 export const homeworkService = {
   async listActivities(user, { studentId }) {
     const { student } = await resolveStudent(user, studentId);
-    return { student, activities: await homeworkRepository.listActivities(student.id) };
+    const activities = await homeworkRepository.listActivities(student.id);
+    const withheld = await unpaidUnitsOf(student.id, [...new Set(activities.map((activity) => activity.unit.id))]);
+    return { student, activities: activities.map((activity) => withholdScore(activity, withheld)) };
   },
 
   async getActivity(user, activityId, { studentId }) {
@@ -61,12 +74,14 @@ export const homeworkService = {
     ]);
 
     const blocker = submitBlocker(activity);
-    const { teacher, courseId, ...publicActivity } = activity;
+    const withheld = await unpaidUnitsOf(student.id, [activity.unit.id]);
+    const { teacher, courseId, ...publicActivity } = withholdScore(activity, withheld);
     return {
       student,
       activity: { ...publicActivity, teacherName: teacher.name, resources },
       attempts,
-      reviews,
+      // La nota de la aprobación también queda oculta mientras haya pagos vencidos
+      reviews: withheld.size ? reviews.map((review) => ({ ...review, score: null, scoreWithheld: review.score !== null })) : reviews,
       canSubmit: canSubmit && !blocker,
       submitBlocker: canSubmit ? blocker : { code: 'READ_ONLY', message: 'Solo el estudiante puede entregar' },
     };

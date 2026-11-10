@@ -1,5 +1,6 @@
 import { AppError } from '../../core/errors/AppError.js';
 import { BaseRepository } from '../../core/db/BaseRepository.js';
+import { unpaidUnitsOf } from '../finance/finance.holds.js';
 import { resolveStudent } from '../homework/homework.service.js';
 
 // Nota mínima de aprobación sobre 100 (la misma que usa el cuadro de notas).
@@ -100,20 +101,26 @@ export const reportCardService = {
     const unit = unitId ? units.find((candidate) => candidate.id === unitId) : (units.find((u) => u.status === 'ACTIVE') ?? units.at(-1));
     if (!unit) throw AppError.notFound('Unidad no encontrada');
 
-    const [courses, items] = await Promise.all([
+    const [courses, rawItems, withheld] = await Promise.all([
       repo.listCourses(enrollment.sectionId),
       repo.listPublishedItems(
         enrollment.sectionId,
         student.id,
         units.map((u) => u.id),
       ),
+      unpaidUnitsOf(student.id, units.map((u) => u.id)),
     ]);
+
+    // Unidad con pagos vencidos: las notas no salen del servidor; se ven como "Pendiente"
+    const items = rawItems.map((item) => (withheld.has(item.unitId) ? { ...item, score: null, withheld: true } : item));
+    const resultOf = (courseItems, forUnitId) =>
+      withheld.has(forUnitId) ? { total: null, published: 0, percent: null, withheld: true } : result(courseItems);
 
     const itemsOf = (courseId, forUnitId) => items.filter((item) => item.courseId === courseId && item.unitId === forUnitId);
 
     const unitCourses = courses.map((course) => {
       const courseItems = itemsOf(course.id, unit.id);
-      return { ...course, items: courseItems.map(({ courseId, unitId: _unit, ...item }) => item), ...result(courseItems) };
+      return { ...course, items: courseItems.map(({ courseId, unitId: _unit, ...item }) => item), ...resultOf(courseItems, unit.id) };
     });
     const graded = unitCourses.filter((course) => course.percent !== null);
 
@@ -121,8 +128,8 @@ export const reportCardService = {
       student: { ...student, section: enrollment.section },
       year: enrollment.yearName,
       passingScore: PASSING_SCORE,
-      units,
-      unit,
+      units: units.map((u) => ({ ...u, withheld: withheld.has(u.id) })),
+      unit: { ...unit, withheld: withheld.has(unit.id) },
       courses: unitCourses,
       // Promedio de rendimiento entre las materias con notas publicadas
       average: graded.length ? round1(graded.reduce((sum, course) => sum + course.percent, 0) / graded.length) : null,
@@ -133,7 +140,7 @@ export const reportCardService = {
         courseId: course.id,
         subject: course.subject,
         color: course.color,
-        units: Object.fromEntries(units.map((u) => [u.id, result(itemsOf(course.id, u.id))])),
+        units: Object.fromEntries(units.map((u) => [u.id, resultOf(itemsOf(course.id, u.id), u.id)])),
       })),
     };
   },

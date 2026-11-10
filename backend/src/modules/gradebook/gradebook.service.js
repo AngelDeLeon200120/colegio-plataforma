@@ -1,11 +1,11 @@
 import { AppError } from '../../core/errors/AppError.js';
 import { withTransaction } from '../../core/db/transaction.js';
-import { localClock } from '../../core/utils/dates.js';
 import { emitToRoom, emitToUsers } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
 import { assertCourseStaff } from '../academic/academic.access.js';
 import { academicRepository } from '../academic/academic.repository.js';
 import { filesService } from '../files/files.service.js';
+import { financeHoldsRepository, schoolTodayDate } from '../finance/finance.holds.js';
 import { CELL_ERRORS, cellKey, validateScore } from './gradebook.rules.js';
 import { gradebookRepository } from './gradebook.repository.js';
 import { buildTemplate } from './import/template.builder.js';
@@ -216,13 +216,11 @@ export const gradebookService = {
   async paymentStatus(user, courseId, { unitId }) {
     const course = await loadCourse(user, courseId);
     const unit = await loadUnit(course, unitId);
-    const timeZone = await academicRepository.findSchoolTimezone();
-    const unpaidStudentIds = await gradebookRepository.findUnpaidStudentIds({
-      sectionId: course.sectionId,
-      unitId: unit.id,
-      today: localClock(new Date(), timeZone).date,
-    });
-    return { unpaidStudentIds, obscureScores: user.role === 'TEACHER' };
+    const charges = await financeHoldsRepository.findUnpaidCharges({ sectionId: course.sectionId, unitId: unit.id, today: await schoolTodayDate() });
+    // Detalle por estudiante (concepto, vencimiento, días de atraso y saldo) para el docente
+    const details = {};
+    for (const { studentId, ...charge } of charges) (details[studentId] ??= []).push(charge);
+    return { unpaidStudentIds: Object.keys(details).map(Number), details, obscureScores: user.role === 'TEACHER' };
   },
 
   async history(user, courseId, { gradeItemId, studentId }) {

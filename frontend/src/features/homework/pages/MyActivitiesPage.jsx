@@ -31,7 +31,9 @@ function ActivityRow({ activity, studentQuery }) {
           </span>
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
-          {status === 'APPROVED' && score !== null ? (
+          {status === 'APPROVED' && activity.submission.scoreWithheld ? (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 ring-inset">Nota pendiente</span>
+          ) : status === 'APPROVED' && score !== null ? (
             <span className="text-sm font-semibold text-emerald-700 tabular-nums">
               {formatScore(score)}
               <span className="font-normal text-zinc-400">/{formatScore(activity.maxScore)}</span>

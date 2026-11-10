@@ -60,6 +60,7 @@ function ReviewEntry({ review, maxScore, last }) {
         <time className="text-xs text-zinc-500" dateTime={review.createdAt}>
           {formatDateTime(review.createdAt)}
         </time>
+        {approved && review.scoreWithheld && <Badge tone="amber">Nota pendiente</Badge>}
         {approved && review.score !== null && (
           <Badge tone="green">
             {formatScore(review.score)} / {formatScore(maxScore)}

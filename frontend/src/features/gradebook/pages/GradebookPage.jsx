@@ -49,7 +49,7 @@ function Sheet({ courseId, sheet, sheetKey }) {
   // Pagos pendientes de la unidad: al docente se le tachan esas notas (solo visual)
   const { data: paymentData } = usePaymentStatus(courseId, sheet.unit.id);
   const payment = useMemo(
-    () => paymentData && { unpaid: new Set(paymentData.unpaidStudentIds), obscure: paymentData.obscureScores },
+    () => paymentData && { unpaid: new Set(paymentData.unpaidStudentIds), obscure: paymentData.obscureScores, details: paymentData.details ?? {} },
     [paymentData],
   );
 

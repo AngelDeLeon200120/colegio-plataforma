@@ -1,8 +1,9 @@
-import { useId, useState } from 'react';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, Mail, Paperclip, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
-import { formatMoney } from '@/lib/format';
+import { formatDate, formatMoney } from '@/lib/format';
+import { parseBankEmail } from '../bankEmail';
 import { useRegisterPayment } from '../hooks';
 import { METHOD_LABELS, previewAllocation } from '../model';
 
@@ -11,6 +12,107 @@ const inputClass =
 
 const toNumber = (text) => Number(String(text).replace(',', '.'));
 const todayInput = () => new Date().toLocaleDateString('en-CA');
+
+const FIELD_LABELS = { amount: 'Monto', method: 'Forma de pago', reference: 'Referencia', paidOn: 'Fecha' };
+
+/**
+ * Autollenado desde el correo de confirmación del banco: se pega el texto (o se carga el .eml)
+ * y se llenan los campos que se encuentren. Solo llena el formulario: el registro sigue igual.
+ */
+function BankEmailAutofill({ currency, onApply }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [result, setResult] = useState(null);
+  const fileInput = useRef(null);
+
+  const read = (raw) => {
+    const found = parseBankEmail(raw, todayInput());
+    setResult(found);
+    onApply(found);
+  };
+
+  const loadFile = async (file) => {
+    if (!file) return;
+    const raw = await file.text();
+    setText(raw.length > 4000 ? `${raw.slice(0, 4000)}…` : raw);
+    read(raw);
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-2 rounded-lg border border-dashed border-brand-300 bg-brand-50/50 px-3 py-2 text-left text-sm text-brand-700 hover:bg-brand-50"
+      >
+        <Mail className="size-4 shrink-0" />
+        <span>
+          <span className="font-medium">Autollenar desde el correo del banco</span>
+          <span className="block text-xs text-brand-700/80">Pega la confirmación de transferencia o depósito y se llenan monto, forma de pago, referencia y fecha.</span>
+        </span>
+      </button>
+    );
+  }
+
+  const found = result && Object.entries(result).filter(([, value]) => value);
+  const missing = result && Object.entries(result).filter(([, value]) => !value);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-brand-200 bg-brand-50/40 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-brand-800">
+          <Mail className="size-4" /> Correo del banco
+        </p>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-zinc-500 hover:text-zinc-800">
+          Ocultar
+        </button>
+      </div>
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onPaste={(event) => {
+          // Al pegar se lee de inmediato
+          const pasted = event.clipboardData.getData('text/html') || event.clipboardData.getData('text/plain');
+          setTimeout(() => read(pasted), 0);
+        }}
+        rows={4}
+        placeholder="Pega aquí el texto del correo de confirmación"
+        aria-label="Texto del correo del banco"
+        className="block w-full resize-y rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 focus:outline-none"
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="primary" onClick={() => read(text)} disabled={!text.trim()}>
+          <Wand2 className="size-3.5" /> Leer correo
+        </Button>
+        <input ref={fileInput} type="file" accept=".eml,.txt,.html,.htm,message/rfc822,text/plain,text/html" className="hidden" onChange={(event) => loadFile(event.target.files[0])} />
+        <Button size="sm" onClick={() => fileInput.current.click()}>
+          <Paperclip className="size-3.5" /> Cargar .eml
+        </Button>
+        <span className="text-[11px] text-zinc-500">El correo no se guarda ni se envía.</span>
+      </div>
+      {result && (
+        <div className="space-y-1 text-xs">
+          {found.length > 0 ? (
+            <p className="flex flex-wrap items-center gap-1 text-emerald-800">
+              <CheckCircle2 className="size-3.5" /> Se llenó:
+              {found.map(([key, value]) => (
+                <span key={key} className="rounded-full bg-emerald-50 px-2 py-0.5 ring-1 ring-emerald-200">
+                  {FIELD_LABELS[key]}: {key === 'amount' ? formatMoney(value, currency) : key === 'method' ? METHOD_LABELS[value] : key === 'paidOn' ? formatDate(value) : value}
+                </span>
+              ))}
+            </p>
+          ) : (
+            <p className="text-amber-800">No se encontraron datos de pago en ese texto.</p>
+          )}
+          {found.length > 0 && missing.length > 0 && (
+            <p className="text-amber-800">No se encontró: {missing.map(([key]) => FIELD_LABELS[key]).join(', ')}. Complétalo a mano.</p>
+          )}
+          {found.length > 0 && <p className="text-zinc-500">Revisa los datos antes de registrar.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Caja: registrar un pago. Muestra a qué cargos se aplicará antes de confirmar. */
 export function PaymentDialog({ statement, onClose }) {
@@ -91,6 +193,16 @@ export function PaymentDialog({ statement, onClose }) {
             <AlertCircle className="mt-0.5 size-4 shrink-0" /> {register.error.message}
           </p>
         )}
+
+        <BankEmailAutofill
+          currency={school.currency}
+          onApply={(found) => {
+            if (found.amount) setAmount(String(found.amount));
+            if (found.method) setMethod(found.method);
+            if (found.reference) setReference(found.reference);
+            if (found.paidOn) setPaidOn(found.paidOn);
+          }}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">

@@ -36,6 +36,7 @@ function useFinanceMutation(mutationFn) {
 }
 
 export const useRegisterPayment = () => useFinanceMutation(financeApi.registerPayment);
-export const useReversePayment = () => useFinanceMutation(({ paymentId, reason }) => financeApi.reversePayment(paymentId, reason));
+export const useAttachReceipt = () => useFinanceMutation(({ paymentId, file }) => financeApi.attachReceipt(paymentId, file));
+export const useReversePayment =() => useFinanceMutation(({ paymentId, reason }) => financeApi.reversePayment(paymentId, reason));
 export const useVoidCharge = () => useFinanceMutation(financeApi.voidCharge);
 export const useGenerateCharges = () => useFinanceMutation(financeApi.generateCharges);

@@ -69,12 +69,17 @@ class FilesRepository extends BaseRepository {
                            JOIN students st ON st.school_id = e.school_id AND st.id = e.student_id
                           WHERE e.school_id = c.school_id AND e.section_id = c.section_id AND e.status = 'ACTIVE'
                             AND (st.user_id = ? OR ${guardianOf('st.id')}))))
+           -- Comprobante de pago: lo ve la familia del estudiante
+           OR EXISTS (
+                SELECT 1 FROM payments p
+                 WHERE p.school_id = f.school_id AND p.receipt_file_id = f.id AND ${guardianOf('p.student_id')})
            -- Imagen del muro de Inicio: la ve toda la comunidad del colegio
            OR EXISTS (
                 SELECT 1 FROM posts p
                  WHERE p.school_id = f.school_id AND p.image_file_id = f.id AND p.deleted_at IS NULL)
         )`,
-      [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id],
+      // El último user.id es el de la familia en el comprobante de pago
+      [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id],
     );
     return toFile(row);
   }

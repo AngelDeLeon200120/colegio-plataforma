@@ -229,13 +229,25 @@ class FinanceRepository extends BaseRepository {
     ]);
   }
 
+  async findPaymentForReceipt(paymentId) {
+    const row = await this.one('SELECT id, student_id, status FROM payments WHERE school_id = ? AND id = ?', [this.schoolId, paymentId]);
+    return row && { id: row.id, studentId: row.student_id, status: row.status };
+  }
+
+  /** Adjunta (o reemplaza) la foto o PDF del comprobante. El archivo anterior se conserva. */
+  async setReceiptFile(paymentId, fileId) {
+    await this.query('UPDATE payments SET receipt_file_id = ? WHERE school_id = ? AND id = ?', [fileId, this.schoolId, paymentId]);
+  }
+
   async listPayments(studentId) {
     const rows = await this.query(
       `SELECT p.id, p.receipt_number, p.amount, p.method, p.reference, p.paid_at, p.status, p.notes,
+              p.receipt_file_id, rf.original_name AS receipt_file_name, rf.mime_type AS receipt_file_mime, rf.size_bytes AS receipt_file_size,
               u.first_name AS receiver_first, u.last_name AS receiver_last,
               pa.charge_id, pa.amount AS allocated, c.description AS charge_description
          FROM payments p
          LEFT JOIN users u ON u.school_id = p.school_id AND u.id = p.received_by
+         LEFT JOIN files rf ON rf.school_id = p.school_id AND rf.id = p.receipt_file_id AND rf.deleted_at IS NULL
          LEFT JOIN payment_allocations pa ON pa.school_id = p.school_id AND pa.payment_id = p.id
          LEFT JOIN charges c ON c.school_id = pa.school_id AND c.id = pa.charge_id
         WHERE p.school_id = ? AND p.student_id = ?
@@ -256,6 +268,9 @@ class FinanceRepository extends BaseRepository {
           status: row.status,
           notes: row.notes,
           receivedBy: row.receiver_first ? `${row.receiver_first} ${row.receiver_last}` : null,
+          receiptFile: row.receipt_file_name
+            ? { id: row.receipt_file_id, name: row.receipt_file_name, mimeType: row.receipt_file_mime, size: row.receipt_file_size }
+            : null,
           allocations: [],
         });
       }

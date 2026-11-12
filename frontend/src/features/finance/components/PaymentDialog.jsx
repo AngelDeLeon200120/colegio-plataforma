@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { formatDate, formatMoney } from '@/lib/format';
 import { parseBankEmail } from '../bankEmail';
-import { useRegisterPayment } from '../hooks';
+import { useAttachReceipt, useRegisterPayment } from '../hooks';
 import { METHOD_LABELS, previewAllocation } from '../model';
+import { ReceiptPicker, receiptProblem } from './ReceiptPicker';
 
 const inputClass =
   'h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm shadow-xs focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 focus:outline-none';
@@ -125,7 +126,10 @@ export function PaymentDialog({ statement, onClose }) {
   const [paidOn, setPaidOn] = useState(todayInput());
   const [notes, setNotes] = useState('');
   const [done, setDone] = useState(null);
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptError, setReceiptError] = useState(null);
   const register = useRegisterPayment();
+  const attach = useAttachReceipt();
   const ids = { amount: useId(), method: useId(), reference: useId(), date: useId(), notes: useId() };
 
   const value = toNumber(amount);
@@ -133,6 +137,21 @@ export function PaymentDialog({ statement, onClose }) {
   const preview = valid ? previewAllocation(value, open) : null;
   const overpaid = preview && preview.leftover > 0;
   const needsReference = method !== 'CASH';
+
+  const pickReceipt = (file) => {
+    setReceiptError(file ? receiptProblem(file) : null);
+    setReceiptFile(file && !receiptProblem(file) ? file : null);
+  };
+
+  // Va después del registro: si falla, el pago ya quedó y se puede reintentar desde aquí
+  const uploadReceipt = async (paymentId) => {
+    try {
+      await attach.mutateAsync({ paymentId, file: receiptFile });
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -148,7 +167,8 @@ export function PaymentDialog({ statement, onClose }) {
         paidAt: paidAt.toISOString(),
         notes: notes.trim() || undefined,
       });
-      setDone(result);
+      const receiptUploaded = receiptFile ? await uploadReceipt(result.id) : null;
+      setDone({ ...result, receiptUploaded });
     } catch {
       // el error se muestra desde la mutación
     }
@@ -166,6 +186,25 @@ export function PaymentDialog({ statement, onClose }) {
               : 'El estudiante no tiene encargados registrados: entrega el recibo impreso.'}
           </span>
         </p>
+        {done.receiptUploaded === true && (
+          <p className="mt-3 flex items-start gap-2 text-sm text-emerald-800">
+            <Paperclip className="mt-0.5 size-4 shrink-0" /> Comprobante adjuntado ({receiptFile.name}).
+          </p>
+        )}
+        {done.receiptUploaded === false && (
+          <div className="mt-3 space-y-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+            <p>
+              El pago quedó registrado, pero el comprobante no se pudo subir{attach.error ? `: ${attach.error.message}` : '.'}
+            </p>
+            <Button
+              size="sm"
+              loading={attach.isPending}
+              onClick={async () => setDone({ ...done, receiptUploaded: await uploadReceipt(done.id) })}
+            >
+              Reintentar subir
+            </Button>
+          </div>
+        )}
       </Dialog>
     );
   }
@@ -181,7 +220,7 @@ export function PaymentDialog({ statement, onClose }) {
           <Button onClick={onClose} disabled={register.isPending}>
             Cancelar
           </Button>
-          <Button type="submit" form="payment-form" variant="primary" loading={register.isPending} disabled={!valid || overpaid}>
+          <Button type="submit" form="payment-form" variant="primary" loading={register.isPending || attach.isPending} disabled={!valid || overpaid}>
             Registrar {valid && formatMoney(value, school.currency)}
           </Button>
         </>
@@ -249,6 +288,13 @@ export function PaymentDialog({ statement, onClose }) {
             Nota <span className="font-normal text-zinc-400">(opcional)</span>
           </label>
           <input id={ids.notes} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} className={inputClass} />
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="block text-sm font-medium text-zinc-700">
+            Comprobante <span className="font-normal text-zinc-400">(opcional)</span>
+          </p>
+          <ReceiptPicker file={receiptFile} onChange={pickReceipt} problem={receiptError} label="Adjuntar foto o PDF de la boleta" />
         </div>
 
         {preview && (

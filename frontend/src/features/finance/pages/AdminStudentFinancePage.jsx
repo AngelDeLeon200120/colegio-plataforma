@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { AlertTriangle, ArrowLeft, Ban, Banknote, Undo2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, Banknote, Paperclip, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { AttachReceiptDialog } from '../components/AttachReceiptDialog';
 import { PaymentDialog } from '../components/PaymentDialog';
 import { ReverseDialog } from '../components/ReverseDialog';
 import { StatementView } from '../components/StatementView';
@@ -14,6 +15,7 @@ export function AdminStudentFinancePage() {
   const voidCharge = useVoidCharge();
   const [paying, setPaying] = useState(false);
   const [reversing, setReversing] = useState(null);
+  const [attaching, setAttaching] = useState(null);
   const [confirmVoid, setConfirmVoid] = useState(null);
 
   return (
@@ -69,18 +71,29 @@ export function AdminStudentFinancePage() {
             }
             renderPaymentActions={(payment) =>
               payment.status !== 'REVERSED' && (
-                <button
-                  type="button"
-                  onClick={() => setReversing(payment)}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
-                >
-                  <Undo2 className="size-3.5" /> Revertir
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAttaching(payment)}
+                    title={payment.receiptFile ? 'Cambiar el comprobante' : 'Adjuntar la foto o PDF de la boleta'}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                  >
+                    <Paperclip className="size-3.5" /> {payment.receiptFile ? 'Cambiar' : 'Adjuntar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReversing(payment)}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
+                  >
+                    <Undo2 className="size-3.5" /> Revertir
+                  </button>
+                </>
               )
             }
           />
 
           {paying && <PaymentDialog statement={data} onClose={() => setPaying(false)} />}
+          {attaching && <AttachReceiptDialog payment={attaching} currency={data.school.currency} onClose={() => setAttaching(null)} />}
           {reversing && <ReverseDialog payment={reversing} currency={data.school.currency} onClose={() => setReversing(null)} />}
         </>
       )}

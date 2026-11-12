@@ -1,6 +1,8 @@
 import { AppError } from '../../core/errors/AppError.js';
 import { withTransaction } from '../../core/db/transaction.js';
+import { matchesSignature } from '../../core/security/fileSignature.js';
 import { localClock } from '../../core/utils/dates.js';
+import { filesService } from '../files/files.service.js';
 import { notificationsService } from '../notifications/notifications.service.js';
 import { financeRepository } from './finance.repository.js';
 import { allocateOldestFirst, formatMoney, fromCents, toCents } from './money.js';
@@ -195,6 +197,22 @@ export const financeService = {
     });
 
     return result;
+  },
+
+  /**
+   * Adjunta la foto o PDF de la boleta a un pago ya registrado. Va aparte del registro:
+   * si la subida falla, el pago queda igual y se puede reintentar.
+   */
+  async attachReceipt(user, paymentId, file) {
+    if (!file) throw AppError.validation([{ field: 'file', issue: 'Adjunta la foto o PDF del comprobante' }]);
+    const payment = await financeRepository.findPaymentForReceipt(paymentId);
+    if (!payment) throw AppError.notFound('Pago no encontrado');
+    if (!matchesSignature(file)) {
+      throw new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', 'El archivo no es una imagen o PDF válido. Usa JPG, PNG, WEBP, HEIC o PDF.');
+    }
+    const fileId = await filesService.store(user, file, 'PAYMENT_RECEIPT');
+    await financeRepository.setReceiptFile(payment.id, fileId);
+    return { id: payment.id, receiptFileId: fileId };
   },
 
   /** Revierte un pago (cheque rebotado, error de caja): devuelve el saldo a sus cargos. */

@@ -11,5 +11,10 @@ export const financeApi = {
   generateCharges: (body) => api('/finance/charges/generate', { method: 'POST', body }),
   voidCharge: (chargeId) => api(`/finance/charges/${chargeId}/void`, { method: 'POST' }),
   registerPayment: (body) => api('/finance/payments', { method: 'POST', body }),
+  attachReceipt(paymentId, file) {
+    const form = new FormData();
+    form.append('file', file);
+    return api(`/finance/payments/${paymentId}/receipt`, { method: 'POST', body: form });
+  },
   reversePayment: (paymentId, reason) => api(`/finance/payments/${paymentId}/reverse`, { method: 'POST', body: { reason } }),
 };

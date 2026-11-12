@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authorize } from '../../core/middleware/authorize.js';
+import { upload } from '../../core/middleware/upload.js';
 import { validate } from '../../core/middleware/validate.js';
 import { emitToRoom } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
@@ -20,6 +21,8 @@ import {
 import { financeService } from './finance.service.js';
 
 export const financeRouter = Router();
+
+const RECEIPT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf'];
 
 // Familia: estado de cuenta de sus hijos e hijas
 financeRouter.get('/me/finance', authorize('PARENT'), validate({ query: familyQuery }), async (req, res) => {
@@ -76,6 +79,16 @@ financeRouter.post('/finance/charges/:chargeId/void', validate({ params: chargeP
 financeRouter.post('/finance/payments', validate({ body: createPaymentBody }), async (req, res) => {
   res.status(201).json({ data: await financeService.registerPayment(req.user, req.valid.body) });
 });
+
+// Foto o PDF de la boleta: multer antes de validate (llega en multipart)
+financeRouter.post(
+  '/finance/payments/:paymentId/receipt',
+  upload({ extensions: RECEIPT_EXTENSIONS, maxBytes: 10 * 1024 * 1024 }).single('file'),
+  validate({ params: paymentParams }),
+  async (req, res) => {
+    res.status(201).json({ data: await financeService.attachReceipt(req.user, req.valid.params.paymentId, req.file) });
+  },
+);
 
 financeRouter.post('/finance/payments/:paymentId/reverse', validate({ params: paymentParams, body: reversePaymentBody }), async (req, res) => {
   res.json({ data: await financeService.reversePayment(req.user, req.valid.params.paymentId, req.valid.body) });

@@ -282,6 +282,7 @@ Crear un evento, cambiarle fecha, hora o sección, o cancelarlo (si aún no pas�
 | PATCH | `/finance/charges/:id` | A | `{ discount?, lateFee? }`; recalcula el estado |
 | POST | `/finance/charges/:id/void` | A | Anula (solo sin pagos) |
 | POST | `/finance/payments` | A | `{ studentId, amount, method, reference?, paidAt?, notes?, allocations?[] }`. Sin `allocations` se aplica del cargo más antiguo al más reciente. `422 OVERPAYMENT` si supera el saldo; `409 DUPLICATE_PAYMENT` si se repite la referencia en 10 min. Avisa a los encargados financieros |
+| POST | `/finance/payments/:id/receipt` | A | Multipart `file`: foto o PDF de la boleta (JPG, PNG, WEBP, HEIC, PDF; máx. 10 MB; se verifica el contenido). Adjunta o reemplaza el comprobante de un pago ya registrado; va aparte del registro para que una subida fallida no afecte el pago. El estado de cuenta trae `receiptFile` y la familia del estudiante puede abrirlo |
 | POST | `/finance/payments/:id/reverse` | A | `{ reason }`: devuelve el saldo a sus cargos; el pago queda como `REVERSED` con el motivo |
 
 Montos en centavos enteros en el servidor; los cargos se bloquean (`FOR UPDATE`) al aplicar un pago.

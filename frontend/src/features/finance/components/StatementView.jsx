@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { AlertTriangle, CalendarClock, ChevronDown, Receipt, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ChevronDown, FileImage, FileText, Loader2, Receipt, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { openFile } from '@/lib/apiClient';
 import { cn } from '@/lib/cn';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format';
 import { METHOD_LABELS, chargeState } from '../model';
@@ -72,6 +73,34 @@ function ChargesTable({ charges, currency, renderActions }) {
  * Estado de cuenta de un estudiante: lo usan la familia y la administración.
  * `renderChargeActions` / `renderPaymentActions` agregan los botones de administración.
  */
+/** Abre la foto o PDF de la boleta en otra pestaña (URL firmada). */
+function ReceiptFileButton({ file }) {
+  const [state, setState] = useState({ opening: false, error: null });
+  const Icon = file.mimeType === 'application/pdf' ? FileText : FileImage;
+  return (
+    <button
+      type="button"
+      title={state.error ?? `Ver comprobante: ${file.name}`}
+      disabled={state.opening}
+      onClick={async () => {
+        setState({ opening: true, error: null });
+        try {
+          await openFile(file.id);
+          setState({ opening: false, error: null });
+        } catch (error) {
+          setState({ opening: false, error: error.message });
+        }
+      }}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium hover:bg-zinc-100',
+        state.error ? 'text-red-600' : 'text-brand-700',
+      )}
+    >
+      {state.opening ? <Loader2 className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />} Comprobante
+    </button>
+  );
+}
+
 export function StatementView({ statement, renderChargeActions, renderPaymentActions, isFamily = false }) {
   const [receipt, setReceipt] = useState(null);
   const { summary, charges, payments, school } = statement;
@@ -134,6 +163,7 @@ export function StatementView({ statement, renderChargeActions, renderPaymentAct
                     </p>
                   </div>
                   {reversed && <Badge tone="red">Revertido</Badge>}
+                  {payment.receiptFile && <ReceiptFileButton file={payment.receiptFile} />}
                   <button
                     type="button"
                     onClick={() => setReceipt(payment)}

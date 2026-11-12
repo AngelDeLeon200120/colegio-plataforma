@@ -51,3 +51,17 @@ export const createPaymentBody = z.object({
 export const reversePaymentBody = z.object({
   reason: z.string().trim().min(5, 'Indica el motivo (mínimo 5 caracteres)').max(300),
 });
+
+// Reporte de pago de la familia: llega en multipart (todo como texto)
+export const reportPaymentBody = z.object({
+  studentId: z.coerce.number().int().positive(),
+  amount: z.coerce.number().positive('El monto debe ser mayor que 0').max(9_999_999.99).refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6, 'Máximo 2 decimales'),
+  method: z.enum(['CARD', 'TRANSFER', 'DEPOSIT', 'ONLINE']),
+  reference: z.string().trim().max(100).optional().transform((value) => value || null),
+  paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida'),
+  notes: z.string().trim().max(500).optional().transform((value) => value || null),
+});
+
+export const rejectReportBody = z.object({
+  reason: z.string().trim().min(5, 'Indica el motivo (mínimo 5 caracteres)').max(300),
+});

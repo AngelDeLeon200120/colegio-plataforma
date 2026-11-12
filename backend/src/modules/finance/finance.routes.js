@@ -14,6 +14,8 @@ import {
   generateChargesBody,
   paymentParams,
   portfolioQuery,
+  rejectReportBody,
+  reportPaymentBody,
   reversePaymentBody,
   studentParams,
   updateConceptBody,
@@ -28,6 +30,17 @@ const RECEIPT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf']
 financeRouter.get('/me/finance', authorize('PARENT'), validate({ query: familyQuery }), async (req, res) => {
   res.json({ data: await financeService.familyStatement(req.user, req.valid.query.studentId) });
 });
+
+// Familia: reporta un pago con la foto o PDF de la boleta (queda en verificación)
+financeRouter.post(
+  '/me/finance/payment-reports',
+  authorize('PARENT'),
+  upload({ extensions: RECEIPT_EXTENSIONS, maxBytes: 10 * 1024 * 1024 }).single('file'),
+  validate({ body: reportPaymentBody }),
+  async (req, res) => {
+    res.status(201).json({ data: await financeService.reportPayment(req.user, req.valid.body, req.file) });
+  },
+);
 
 // Administración
 const admin = authorize('ADMIN');
@@ -89,6 +102,19 @@ financeRouter.post(
     res.status(201).json({ data: await financeService.attachReceipt(req.user, req.valid.params.paymentId, req.file) });
   },
 );
+
+// Pagos reportados por las familias: verificar contra el banco y confirmar o rechazar
+financeRouter.get('/finance/payment-reports', async (req, res) => {
+  res.json({ data: await financeService.listReported() });
+});
+
+financeRouter.post('/finance/payment-reports/:paymentId/confirm', validate({ params: paymentParams }), async (req, res) => {
+  res.json({ data: await financeService.confirmReported(req.user, req.valid.params.paymentId) });
+});
+
+financeRouter.post('/finance/payment-reports/:paymentId/reject', validate({ params: paymentParams, body: rejectReportBody }), async (req, res) => {
+  res.json({ data: await financeService.rejectReported(req.user, req.valid.params.paymentId, req.valid.body) });
+});
 
 financeRouter.post('/finance/payments/:paymentId/reverse', validate({ params: paymentParams, body: reversePaymentBody }), async (req, res) => {
   res.json({ data: await financeService.reversePayment(req.user, req.valid.params.paymentId, req.valid.body) });

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { AttachReceiptDialog } from '../components/AttachReceiptDialog';
 import { PaymentDialog } from '../components/PaymentDialog';
+import { ReportedPaymentActions } from '../components/ReportedPayments';
 import { ReverseDialog } from '../components/ReverseDialog';
 import { StatementView } from '../components/StatementView';
 import { useAdminStatement, useVoidCharge } from '../hooks';
@@ -70,7 +71,10 @@ export function AdminStudentFinancePage() {
               )
             }
             renderPaymentActions={(payment) =>
-              payment.status !== 'REVERSED' && (
+              payment.status === 'PENDING_VERIFICATION' ? (
+                <ReportedPaymentActions payment={payment} />
+              ) : (
+                payment.status !== 'REVERSED' && (
                 <>
                   <button
                     type="button"
@@ -88,6 +92,7 @@ export function AdminStudentFinancePage() {
                     <Undo2 className="size-3.5" /> Revertir
                   </button>
                 </>
+                )
               )
             }
           />

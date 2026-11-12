@@ -207,15 +207,20 @@ class FinanceRepository extends BaseRepository {
     return row?.id ?? null;
   }
 
-  async insertPayment({ studentId, payerUserId, amount, method, reference, paidAt, receivedBy, notes }) {
+  /**
+   * status CONFIRMED (caja) o PENDING_VERIFICATION (reportado por la familia). Un reporte lleva
+   * número "P-…" provisional: el recibo oficial "R-…" se asigna al confirmarlo.
+   */
+  async insertPayment({ studentId, payerUserId, amount, method, reference, paidAt, receivedBy, notes, status = 'CONFIRMED' }) {
     // El número de recibo depende del id: se inserta uno provisional y se reemplaza
     const provisional = `TMP-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const result = await this.query(
-      `INSERT INTO payments (school_id, student_id, payer_user_id, amount, method, reference, receipt_number, paid_at, received_by, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [this.schoolId, studentId, payerUserId, amount, method, reference, provisional, paidAt, receivedBy, notes],
+      `INSERT INTO payments (school_id, student_id, payer_user_id, amount, method, reference, receipt_number, paid_at, received_by, notes, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [this.schoolId, studentId, payerUserId, amount, method, reference, provisional, paidAt, receivedBy, notes, status],
     );
-    const receiptNumber = `R-${paidAt.getUTCFullYear()}-${String(result.insertId).padStart(6, '0')}`;
+    const prefix = status === 'PENDING_VERIFICATION' ? 'P' : 'R';
+    const receiptNumber = `${prefix}-${paidAt.getUTCFullYear()}-${String(result.insertId).padStart(6, '0')}`;
     await this.query('UPDATE payments SET receipt_number = ? WHERE school_id = ? AND id = ?', [receiptNumber, this.schoolId, result.insertId]);
     return { id: result.insertId, receiptNumber };
   }
@@ -283,10 +288,65 @@ class FinanceRepository extends BaseRepository {
 
   async lockPayment(paymentId) {
     const row = await this.one(
-      'SELECT id, student_id, status, amount, notes FROM payments WHERE school_id = ? AND id = ? FOR UPDATE',
+      'SELECT id, student_id, status, amount, notes, payer_user_id, paid_at FROM payments WHERE school_id = ? AND id = ? FOR UPDATE',
       [this.schoolId, paymentId],
     );
-    return row && { id: row.id, studentId: row.student_id, status: row.status, amount: row.amount, notes: row.notes };
+    return (
+      row && {
+        id: row.id,
+        studentId: row.student_id,
+        status: row.status,
+        amount: row.amount,
+        notes: row.notes,
+        payerUserId: row.payer_user_id,
+        paidAt: row.paid_at,
+      }
+    );
+  }
+
+  /** Reporte de la familia verificado: pasa a pago confirmado con su recibo oficial. */
+  async confirmReported(paymentId, receivedBy, paidAt) {
+    const receiptNumber = `R-${new Date(paidAt).getUTCFullYear()}-${String(paymentId).padStart(6, '0')}`;
+    await this.query(
+      `UPDATE payments SET status = 'CONFIRMED', received_by = ?, receipt_number = ? WHERE school_id = ? AND id = ? AND status = 'PENDING_VERIFICATION'`,
+      [receivedBy, receiptNumber, this.schoolId, paymentId],
+    );
+    return receiptNumber;
+  }
+
+  /** Pagos reportados por familias que esperan verificación (los más antiguos primero). */
+  async listReported() {
+    const rows = await this.query(
+      `SELECT p.id, p.student_id, p.amount, p.method, p.reference, p.paid_at, p.notes, p.created_at, p.receipt_number,
+              st.first_name, st.last_name, st.student_code, u.first_name AS payer_first, u.last_name AS payer_last,
+              rf.id AS file_id, rf.original_name AS file_name, rf.mime_type AS file_mime, rf.size_bytes AS file_size
+         FROM payments p
+         JOIN students st  ON st.school_id = p.school_id AND st.id = p.student_id
+         LEFT JOIN users u ON u.school_id = p.school_id AND u.id = p.payer_user_id
+         LEFT JOIN files rf ON rf.school_id = p.school_id AND rf.id = p.receipt_file_id AND rf.deleted_at IS NULL
+        WHERE p.school_id = ? AND p.status = 'PENDING_VERIFICATION'
+        ORDER BY p.created_at, p.id
+        LIMIT 200`,
+      [this.schoolId],
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      receiptNumber: row.receipt_number,
+      amount: row.amount,
+      method: row.method,
+      reference: row.reference,
+      paidAt: row.paid_at,
+      notes: row.notes,
+      reportedAt: row.created_at,
+      student: { id: row.student_id, firstName: row.first_name, lastName: row.last_name, code: row.student_code },
+      reportedBy: row.payer_first ? `${row.payer_first} ${row.payer_last}` : null,
+      receiptFile: row.file_id ? { id: row.file_id, name: row.file_name, mimeType: row.file_mime, size: row.file_size } : null,
+    }));
+  }
+
+  async findAdminIds() {
+    const rows = await this.query(`SELECT id FROM users WHERE school_id = ? AND role = 'ADMIN' AND status = 'ACTIVE' AND deleted_at IS NULL`, [this.schoolId]);
+    return rows.map((row) => row.id);
   }
 
   async listAllocations(paymentId) {

@@ -152,6 +152,10 @@ export function StatementView({ statement, renderChargeActions, renderPaymentAct
           <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xs">
             {payments.map((payment) => {
               const reversed = payment.status === 'REVERSED';
+              const pending = payment.status === 'PENDING_VERIFICATION';
+              // Un reporte de la familia que se rechazó nunca se aplicó a cargos
+              const rejected = reversed && payment.allocations.length === 0 && /Rechazado/.test(payment.notes ?? '');
+              const rejectReason = rejected ? payment.notes.split('\n').find((line) => line.startsWith('Rechazado'))?.replace(/^Rechazado[^:]*:\s*/, '') : null;
               return (
                 <li key={payment.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
                   <div className="min-w-0 flex-1">
@@ -159,18 +163,24 @@ export function StatementView({ statement, renderChargeActions, renderPaymentAct
                       {formatMoney(payment.amount, currency)} · {METHOD_LABELS[payment.method]}
                     </p>
                     <p className="truncate text-xs text-zinc-500">
-                      {formatDateTime(payment.paidAt)} · {payment.receiptNumber} · {payment.allocations.map((a) => a.description).join(', ')}
+                      {formatDateTime(payment.paidAt)} · {payment.receiptNumber}
+                      {pending && payment.reference && ` · Ref. ${payment.reference}`}
+                      {payment.allocations.length > 0 && ` · ${payment.allocations.map((a) => a.description).join(', ')}`}
                     </p>
+                    {rejectReason && <p className="text-xs text-red-600">Motivo: {rejectReason}</p>}
                   </div>
-                  {reversed && <Badge tone="red">Revertido</Badge>}
+                  {pending && <Badge tone="amber">En verificación</Badge>}
+                  {rejected ? <Badge tone="red">Rechazado</Badge> : reversed && <Badge tone="red">Revertido</Badge>}
                   {payment.receiptFile && <ReceiptFileButton file={payment.receiptFile} />}
-                  <button
-                    type="button"
-                    onClick={() => setReceipt(payment)}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                  >
-                    <Receipt className="size-3.5" /> Recibo
-                  </button>
+                  {payment.status === 'CONFIRMED' || (reversed && !rejected) ? (
+                    <button
+                      type="button"
+                      onClick={() => setReceipt(payment)}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                    >
+                      <Receipt className="size-3.5" /> Recibo
+                    </button>
+                  ) : null}
                   {renderPaymentActions?.(payment)}
                 </li>
               );

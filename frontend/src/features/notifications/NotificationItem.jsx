@@ -10,6 +10,7 @@ import {
   Megaphone,
   MessageCircle,
   MessageSquare,
+  Receipt,
   RotateCcw,
   ThumbsUp,
   Video,
@@ -29,6 +30,8 @@ const LOOK = {
   MEETING: { icon: Video, className: 'bg-violet-50 text-violet-600' },
   POST: { icon: Megaphone, className: 'bg-amber-50 text-amber-700' },
   EVENT: { icon: CalendarDays, className: 'bg-sky-50 text-sky-700' },
+  PAYMENT_REPORTED: { icon: Receipt, className: 'bg-amber-50 text-amber-700' },
+  PAYMENT_REJECTED: { icon: AlertOctagon, className: 'bg-red-50 text-red-600' },
   POST_REACTION: { icon: ThumbsUp, className: 'bg-brand-50 text-brand-700' },
   POST_COMMENT: { icon: MessageCircle, className: 'bg-emerald-50 text-emerald-600' },
 };

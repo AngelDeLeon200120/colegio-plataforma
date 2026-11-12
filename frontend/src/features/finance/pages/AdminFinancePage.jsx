@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { AlertTriangle, ChevronRight, FilePlus2, Search, Users, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 import { formatDate, formatMoney } from '@/lib/format';
 import { GenerateChargesDialog } from '../components/GenerateChargesDialog';
+import { ReportedPaymentsPanel } from '../components/ReportedPayments';
 import { usePortfolio } from '../hooks';
 
 function useDebounced(value, delay = 300) {
@@ -19,6 +20,7 @@ function useDebounced(value, delay = 300) {
 
 /** Cartera: quién debe, cuánto y desde cuándo. Los morosos primero. */
 export function AdminFinancePage() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [generating, setGenerating] = useState(false);
   const query = useDebounced(search.trim());
@@ -35,6 +37,8 @@ export function AdminFinancePage() {
           <FilePlus2 className="size-3.5" /> Generar cargos
         </Button>
       </header>
+
+      <ReportedPaymentsPanel focus={searchParams.get('verify') === '1'} />
 
       {data && (
         <div className="mt-6 grid gap-3 sm:grid-cols-3">

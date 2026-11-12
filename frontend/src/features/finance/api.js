@@ -4,7 +4,17 @@ export const financeApi = {
   // Familia
   familyStatement: (studentId) => api(`/me/finance?studentId=${studentId}`),
 
+  reportPayment({ file, ...fields }) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) if (value !== undefined && value !== null && value !== '') form.append(key, String(value));
+    form.append('file', file);
+    return api('/me/finance/payment-reports', { method: 'POST', body: form });
+  },
+
   // Administración
+  reportedPayments: () => api('/finance/payment-reports'),
+  confirmReported: (paymentId) => api(`/finance/payment-reports/${paymentId}/confirm`, { method: 'POST' }),
+  rejectReported: (paymentId, reason) => api(`/finance/payment-reports/${paymentId}/reject`, { method: 'POST', body: { reason } }),
   portfolio: (q) => api(`/finance/students${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   adminStatement: (studentId) => api(`/finance/students/${studentId}`),
   concepts: () => api('/finance/fee-concepts'),

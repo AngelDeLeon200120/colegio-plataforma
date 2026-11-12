@@ -2,6 +2,8 @@ import { AppError } from '../../core/errors/AppError.js';
 import { withTransaction } from '../../core/db/transaction.js';
 import { matchesSignature } from '../../core/security/fileSignature.js';
 import { localClock } from '../../core/utils/dates.js';
+import { emitToRoom } from '../../realtime/emitter.js';
+import { rooms } from '../../realtime/rooms.js';
 import { filesService } from '../files/files.service.js';
 import { notificationsService } from '../notifications/notifications.service.js';
 import { financeRepository } from './finance.repository.js';
@@ -13,6 +15,13 @@ const METHOD_LABELS = { CASH: 'efectivo', CARD: 'tarjeta', TRANSFER: 'transferen
 async function schoolToday() {
   const school = await financeRepository.findSchoolInfo();
   return { school, today: localClock(new Date(), school.timezone).date };
+}
+
+/** Mediodía de esa fecha en la hora del colegio (la familia solo indica el día). */
+function localNoon(date, timeZone) {
+  const utcNoon = new Date(`${date}T12:00:00Z`);
+  const localHour = Number(new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', hourCycle: 'h23' }).format(utcNoon));
+  return new Date(utcNoon.getTime() - (localHour - 12) * 3_600_000);
 }
 
 function summarize(charges, payments, today) {
@@ -213,6 +222,133 @@ export const financeService = {
     const fileId = await filesService.store(user, file, 'PAYMENT_RECEIPT');
     await financeRepository.setReceiptFile(payment.id, fileId);
     return { id: payment.id, receiptFileId: fileId };
+  },
+
+  /**
+   * La familia reporta un pago con la foto o PDF de la boleta. Queda "en verificación":
+   * no toca saldos ni cargos hasta que la administración lo confirme.
+   */
+  async reportPayment(user, body, file) {
+    if (!(await financeRepository.isGuardian(user.id, body.studentId))) throw AppError.notFound('Estudiante no encontrado');
+    if (!file) throw AppError.validation([{ field: 'file', issue: 'Adjunta la foto o PDF de la boleta' }]);
+    if (!matchesSignature(file)) {
+      throw new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', 'El archivo no es una imagen o PDF válido. Usa JPG, PNG, WEBP, HEIC o PDF.');
+    }
+    const student = await financeRepository.findStudent(body.studentId);
+    if (!student) throw AppError.notFound('Estudiante no encontrado');
+    if (body.reference && (await financeRepository.findRecentDuplicate(body))) {
+      throw AppError.conflict('DUPLICATE_PAYMENT', 'Ya se reportó un pago igual con esa referencia hace unos minutos');
+    }
+
+    const { school, today } = await schoolToday();
+    if (body.paidOn > today) throw AppError.validation([{ field: 'paidOn', issue: 'La fecha del pago no puede ser futura' }]);
+
+    // Disco antes de la transacción (no es transaccional), como en el resto de archivos
+    const fileId = await filesService.store(user, file, 'PAYMENT_RECEIPT');
+    return withTransaction(async (connection, afterCommit) => {
+      const repo = financeRepository.withConnection(connection);
+      const payment = await repo.insertPayment({
+        studentId: student.id,
+        payerUserId: user.id,
+        amount: body.amount,
+        method: body.method,
+        reference: body.reference,
+        paidAt: localNoon(body.paidOn, school.timezone),
+        receivedBy: null,
+        notes: body.notes,
+        status: 'PENDING_VERIFICATION',
+      });
+      await repo.setReceiptFile(payment.id, fileId);
+
+      const admins = await repo.findAdminIds();
+      const notifications = await notificationsService.createForUsers(connection, admins, {
+        type: 'PAYMENT_REPORTED',
+        priority: 'NORMAL',
+        title: `Pago por verificar: ${formatMoney(body.amount, school.currency)}`,
+        body: `${student.firstName} ${student.lastName} · ${METHOD_LABELS[body.method]}${body.reference ? ` · Ref. ${body.reference}` : ''}`,
+        entityType: 'payment',
+        entityId: payment.id,
+        actionUrl: '/admin/finance?verify=1',
+        dedupeKey: `payment-reported:${payment.id}`,
+      });
+      afterCommit(() => {
+        notificationsService.publish(notifications);
+        emitToRoom(rooms.school(user.schoolId), 'finance:status_changed', {});
+      });
+      return { id: payment.id, status: 'PENDING_VERIFICATION', reference: payment.receiptNumber };
+    });
+  },
+
+  listReported: () => financeRepository.listReported(),
+
+  /** Verificado contra el banco: se aplica a los cargos más antiguos, como un pago de caja. */
+  async confirmReported(user, paymentId) {
+    const { school, today } = await schoolToday();
+    return withTransaction(async (connection, afterCommit) => {
+      const repo = financeRepository.withConnection(connection);
+      const payment = await repo.lockPayment(paymentId);
+      if (!payment) throw AppError.notFound('Pago no encontrado');
+      if (payment.status !== 'PENDING_VERIFICATION') throw AppError.unprocessable('NOT_PENDING', 'Este pago ya fue confirmado o rechazado');
+
+      const open = await repo.lockOpenCharges(payment.studentId);
+      const { allocations, leftover } = allocateOldestFirst(payment.amount, open);
+      if (leftover > 0) {
+        throw AppError.unprocessable(
+          'OVERPAYMENT',
+          `El pago supera el saldo pendiente por ${formatMoney(leftover, school.currency)}. Recházalo y pide a la familia que lo reporte por el monto correcto.`,
+        );
+      }
+      for (const allocation of allocations) {
+        await repo.insertAllocation(payment.id, allocation.chargeId, allocation.amount);
+        await repo.applyToCharge(allocation.chargeId, allocation.amount, today);
+      }
+      const receiptNumber = await repo.confirmReported(payment.id, user.id, payment.paidAt);
+
+      const student = await repo.findStudent(payment.studentId);
+      const guardians = await repo.financeGuardians(payment.studentId);
+      const notifications = await notificationsService.createForUsers(connection, [...new Set([...guardians, payment.payerUserId].filter(Boolean))], {
+        type: 'PAYMENT_RECEIVED',
+        priority: 'NORMAL',
+        title: `Pago confirmado: ${formatMoney(payment.amount, school.currency)}`,
+        body: `Verificamos el pago de ${student.firstName} ${student.lastName}. Recibo ${receiptNumber}.`,
+        entityType: 'payment',
+        entityId: payment.id,
+        studentId: payment.studentId,
+        actionUrl: `/finance?student=${payment.studentId}`,
+        dedupeKey: `payment:${payment.id}`,
+      });
+      afterCommit(() => notificationsService.publish(notifications));
+      return { id: payment.id, status: 'CONFIRMED', receiptNumber, allocations };
+    });
+  },
+
+  /** No aparece en el banco o no corresponde: se rechaza con motivo y se avisa a la familia. */
+  async rejectReported(user, paymentId, { reason }) {
+    const { school, today } = await schoolToday();
+    return withTransaction(async (connection, afterCommit) => {
+      const repo = financeRepository.withConnection(connection);
+      const payment = await repo.lockPayment(paymentId);
+      if (!payment) throw AppError.notFound('Pago no encontrado');
+      if (payment.status !== 'PENDING_VERIFICATION') throw AppError.unprocessable('NOT_PENDING', 'Este pago ya fue confirmado o rechazado');
+
+      const note = `Rechazado por usuario ${user.id} el ${today}: ${reason}`;
+      await repo.markReversed(payment.id, payment.notes ? `${payment.notes}\n${note}` : note);
+
+      const guardians = await repo.financeGuardians(payment.studentId);
+      const notifications = await notificationsService.createForUsers(connection, [...new Set([...guardians, payment.payerUserId].filter(Boolean))], {
+        type: 'PAYMENT_REJECTED',
+        priority: 'HIGH',
+        title: `Pago no verificado: ${formatMoney(payment.amount, school.currency)}`,
+        body: `Motivo: ${reason}`.slice(0, 1000),
+        entityType: 'payment',
+        entityId: payment.id,
+        studentId: payment.studentId,
+        actionUrl: `/finance?student=${payment.studentId}`,
+        dedupeKey: `payment-rejected:${payment.id}`,
+      });
+      afterCommit(() => notificationsService.publish(notifications));
+      return { id: payment.id, status: 'REJECTED' };
+    });
   },
 
   /** Revierte un pago (cheque rebotado, error de caja): devuelve el saldo a sus cargos. */

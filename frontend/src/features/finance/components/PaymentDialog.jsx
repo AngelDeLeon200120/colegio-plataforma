@@ -20,7 +20,7 @@ const FIELD_LABELS = { amount: 'Monto', method: 'Forma de pago', reference: 'Ref
  * Autollenado desde el correo de confirmación del banco: se pega el texto (o se carga el .eml)
  * y se llenan los campos que se encuentren. Solo llena el formulario: el registro sigue igual.
  */
-function BankEmailAutofill({ currency, onApply }) {
+export function BankEmailAutofill({ currency, onApply }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [result, setResult] = useState(null);

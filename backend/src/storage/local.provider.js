@@ -22,12 +22,12 @@ export const localStorageProvider = {
     await writeFile(target, buffer);
   },
 
-  /** { size, stream } o null si el archivo ya no existe en disco. */
-  async getObject(key) {
+  /** { size, stream } o null si el archivo ya no existe en disco. `range` = { start, end } opcional. */
+  async getObject(key, range = null) {
     const target = resolveKey(key);
     try {
       const { size } = await stat(target);
-      return { size, stream: createReadStream(target) };
+      return { size, stream: createReadStream(target, range ?? undefined) };
     } catch (err) {
       if (err.code === 'ENOENT') return null;
       throw err;

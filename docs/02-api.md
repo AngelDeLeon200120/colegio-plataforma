@@ -206,6 +206,8 @@ Transiciones válidas (`submission.stateMachine.js`); cualquier otra → `422 IN
 Whitelist de MIME para entregas: PDF, imágenes, Office, ZIP. Máx. 20 MB por archivo, 5 por intento.
 Se valida la firma real del archivo (magic bytes), no solo la extensión.
 
+`GET /files/:id/content` acepta el encabezado `Range` (responde `206 Partial Content`): los videos se pueden adelantar sin descargarlos completos. Sin `Range`, el archivo completo como siempre.
+
 ### 2.8 Notificaciones
 
 | Método | Ruta | Roles | Descripción |
@@ -293,7 +295,7 @@ Una sala por colegio con la administración y todos los docentes activos. Solo r
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/staff-chat/messages?before=&limit=` | T, A | Últimos mensajes en orden cronológico (páginas de 50 hacia atrás) → `{ messages, hasMore, canModerate }`. Los eliminados vienen con `deleted: true` y sin texto |
-| POST | `/staff-chat/messages` | T, A | `{ body }` (máx. 4000) |
+| POST | `/staff-chat/messages` | T, A | JSON `{ body }` (máx. 4000) o multipart `{ body?, files[] }`: hasta 5 adjuntos de 50 MB — fotos (JPG, PNG, GIF, WEBP, HEIC), **videos (MP4, M4V, MOV, WEBM)**, PDF, Word, Excel, PowerPoint, ZIP; se verifica el contenido. Texto o adjuntos (al menos uno). Cada mensaje trae `attachments[]`; solo el personal puede abrirlos |
 | DELETE | `/staff-chat/messages/:id` | autor o A | Queda como "Mensaje eliminado" |
 | GET | `/staff-chat/members` | T, A | Administración y docentes activos |
 | GET | `/staff-chat/unread-count` | T, A | `{ count }` de mensajes ajenos sin leer (contador del menú) |

@@ -31,6 +31,35 @@ class StaffChatRepository extends BaseRepository {
     return row && toMessage(row);
   }
 
+  /** Adjuntos de varios mensajes: { messageId: [{ id, name, mimeType, size }] }. Los de mensajes eliminados no se devuelven. */
+  async listAttachments(messageIds) {
+    if (!messageIds.length) return {};
+    const rows = await this.query(
+      `SELECT sca.message_id, f.id, f.original_name, f.mime_type, f.size_bytes
+         FROM staff_chat_attachments sca
+         JOIN files f ON f.school_id = sca.school_id AND f.id = sca.file_id AND f.deleted_at IS NULL
+        WHERE sca.school_id = ? AND sca.message_id IN (${messageIds.map(() => '?').join(', ')})
+        ORDER BY sca.message_id, sca.sort_order`,
+      [this.schoolId, ...messageIds],
+    );
+    const byMessage = {};
+    for (const row of rows) {
+      (byMessage[row.message_id] ??= []).push({ id: row.id, name: row.original_name, mimeType: row.mime_type, size: row.size_bytes });
+    }
+    return byMessage;
+  }
+
+  async insertAttachments(messageId, fileIds) {
+    for (const [index, fileId] of fileIds.entries()) {
+      await this.query('INSERT INTO staff_chat_attachments (school_id, message_id, file_id, sort_order) VALUES (?, ?, ?, ?)', [
+        this.schoolId,
+        messageId,
+        fileId,
+        index,
+      ]);
+    }
+  }
+
   async insertMessage(authorId, body) {
     const result = await this.query('INSERT INTO staff_chat_messages (school_id, author_id, body) VALUES (?, ?, ?)', [this.schoolId, authorId, body]);
     return result.insertId;

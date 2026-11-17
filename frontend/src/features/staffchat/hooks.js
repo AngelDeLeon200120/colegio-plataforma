@@ -1,14 +1,21 @@
 import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/features/auth/store';
-import { api } from '@/lib/apiClient';
+import { api, apiUpload } from '@/lib/apiClient';
 import { getSocket } from '@/lib/socket';
 
 export const staffChatApi = {
   messages: ({ before } = {}) => api(`/staff-chat/messages${before ? `?before=${before}` : ''}`),
   members: () => api('/staff-chat/members'),
   unread: () => api('/staff-chat/unread-count'),
-  send: (body) => api('/staff-chat/messages', { method: 'POST', body: { body } }),
+  /** Solo texto: JSON como siempre. Con adjuntos: multipart con progreso de subida (0 a 1). */
+  send({ body, files = [], onProgress }) {
+    if (!files.length) return api('/staff-chat/messages', { method: 'POST', body: { body } });
+    const form = new FormData();
+    if (body) form.append('body', body);
+    files.forEach((file) => form.append('files', file));
+    return apiUpload('/staff-chat/messages', form, { onProgress });
+  },
   remove: (messageId) => api(`/staff-chat/messages/${messageId}`, { method: 'DELETE' }),
   read: (messageId) => api('/staff-chat/read', { method: 'POST', body: { messageId } }),
 };

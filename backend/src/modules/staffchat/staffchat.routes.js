@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authorize } from '../../core/middleware/authorize.js';
+import { upload } from '../../core/middleware/upload.js';
 import { validate } from '../../core/middleware/validate.js';
+import { CHAT_EXTENSIONS } from '../../core/security/fileSignature.js';
 import { staffChatService } from './staffchat.service.js';
 
 const id = z.coerce.number().int().positive();
@@ -23,8 +25,12 @@ staffChatRouter.get('/staff-chat/unread-count', async (req, res) => {
   res.json({ data: await staffChatService.unreadCount(req.user) });
 });
 
-staffChatRouter.post('/staff-chat/messages', validate({ body: z.object({ body: z.string().trim().min(1, 'Escribe el mensaje').max(4000) }) }), async (req, res) => {
-  res.status(201).json({ data: await staffChatService.send(req.user, req.valid.body.body) });
+// Hasta 5 adjuntos de 50 MB (fotos, videos, documentos). También acepta JSON solo con texto.
+const attachments = upload({ extensions: CHAT_EXTENSIONS, maxBytes: 50 * 1024 * 1024, maxFiles: 5 }).array('files', 5);
+const sendBody = z.object({ body: z.string().trim().max(4000).optional().transform((value) => value || null) });
+
+staffChatRouter.post('/staff-chat/messages', attachments, validate({ body: sendBody }), async (req, res) => {
+  res.status(201).json({ data: await staffChatService.send(req.user, req.valid.body.body, req.files ?? []) });
 });
 
 staffChatRouter.delete('/staff-chat/messages/:messageId', validate({ params: z.object({ messageId: id }) }), async (req, res) => {

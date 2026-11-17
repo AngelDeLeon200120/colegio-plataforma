@@ -73,13 +73,18 @@ class FilesRepository extends BaseRepository {
            OR EXISTS (
                 SELECT 1 FROM payments p
                  WHERE p.school_id = f.school_id AND p.receipt_file_id = f.id AND ${guardianOf('p.student_id')})
+           -- Adjunto del chat del personal: lo ven la administración y los docentes
+           OR (? = 'TEACHER' AND EXISTS (
+                SELECT 1 FROM staff_chat_attachments sca
+                  JOIN staff_chat_messages scm ON scm.school_id = sca.school_id AND scm.id = sca.message_id AND scm.deleted_at IS NULL
+                 WHERE sca.school_id = f.school_id AND sca.file_id = f.id))
            -- Imagen del muro de Inicio: la ve toda la comunidad del colegio
            OR EXISTS (
                 SELECT 1 FROM posts p
                  WHERE p.school_id = f.school_id AND p.image_file_id = f.id AND p.deleted_at IS NULL)
         )`,
       // El último user.id es el de la familia en el comprobante de pago
-      [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id],
+      [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.role],
     );
     return toFile(row);
   }
@@ -130,7 +135,11 @@ export const filesService = {
     return { url: `/api/v1/files/${file.id}/content?token=${token}`, expiresIn: FILE_URL_TTL_SECONDS };
   },
 
-  async openSigned(fileId, token) {
+  /**
+   * `rangeHeader` ("bytes=1000-") es opcional: con él se devuelve solo ese tramo (206),
+   * para que los videos se puedan adelantar. Sin él, el archivo completo como siempre.
+   */
+  async openSigned(fileId, token, rangeHeader = null) {
     let payload;
     try {
       payload = jwt.verify(token ?? '', env.JWT_ACCESS_SECRET, { algorithms: ['HS256'], audience: FILE_TOKEN_AUDIENCE });
@@ -142,9 +151,23 @@ export const filesService = {
     if (Number(payload.sub) !== fileId) throw new AppError(403, 'INVALID_LINK', 'Enlace de descarga inválido');
 
     const file = await filesRepository.findBySchool(Number(payload.sid), fileId);
-    const object = file && (await storage.getObject(file.storageKey));
+    if (!file) throw AppError.notFound('El archivo ya no está disponible');
+
+    const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader ?? '');
+    if (match && file.size > 0 && (match[1] || match[2])) {
+      const total = file.size;
+      let start = match[1] ? Number(match[1]) : Math.max(total - Number(match[2]), 0);
+      let end = match[1] && match[2] ? Math.min(Number(match[2]), total - 1) : total - 1;
+      if (start <= end && start < total) {
+        const object = await storage.getObject(file.storageKey, { start, end });
+        if (!object) throw AppError.notFound('El archivo ya no está disponible');
+        return { ...servingTypeFor(file.name), name: file.name, size: end - start + 1, total, range: { start, end }, stream: object.stream };
+      }
+    }
+
+    const object = await storage.getObject(file.storageKey);
     if (!object) throw AppError.notFound('El archivo ya no está disponible');
 
-    return { ...servingTypeFor(file.name), name: file.name, size: object.size, stream: object.stream };
+    return { ...servingTypeFor(file.name), name: file.name, size: object.size, total: object.size, stream: object.stream };
   },
 };

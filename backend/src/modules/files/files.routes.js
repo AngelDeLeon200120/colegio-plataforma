@@ -19,11 +19,16 @@ publicFilesRouter.get(
   '/files/:fileId/content',
   validate({ params: fileParams, query: z.object({ token: z.string().max(2000) }) }),
   async (req, res) => {
-    const file = await filesService.openSigned(req.valid.params.fileId, req.valid.query.token);
+    const file = await filesService.openSigned(req.valid.params.fileId, req.valid.query.token, req.headers.range);
     const disposition = file.inline ? 'inline' : 'attachment';
 
     res.setHeader('Content-Type', file.contentType);
     res.setHeader('Content-Length', file.size);
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (file.range) {
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${file.range.start}-${file.range.end}/${file.total}`);
+    }
     res.setHeader(
       'Content-Disposition',
       `${disposition}; filename="${file.name.replace(/[^\x20-\x7e]|"/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,

@@ -283,7 +283,7 @@ CREATE TABLE files (
   mime_type      VARCHAR(120)    NOT NULL,
   size_bytes     INT UNSIGNED    NOT NULL,
   sha256         CHAR(64)        NULL,
-  purpose        ENUM('ACTIVITY_RESOURCE','SUBMISSION','GRADE_IMPORT','AVATAR','PAYMENT_RECEIPT','POST_IMAGE') NOT NULL,
+  purpose        ENUM('ACTIVITY_RESOURCE','SUBMISSION','GRADE_IMPORT','AVATAR','PAYMENT_RECEIPT','POST_IMAGE','STAFF_CHAT') NOT NULL,
   created_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at     DATETIME        NULL,
   PRIMARY KEY (id),
@@ -981,6 +981,17 @@ CREATE TABLE IF NOT EXISTS staff_chat_reads (
   PRIMARY KEY (user_id),
   KEY ix_staff_chat_reads_school (school_id),
   CONSTRAINT fk_staff_chat_reads_user FOREIGN KEY (school_id, user_id) REFERENCES users (school_id, id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Adjuntos del chat del personal (migración 006)
+CREATE TABLE IF NOT EXISTS staff_chat_attachments (
+  school_id   BIGINT UNSIGNED  NOT NULL,
+  message_id  BIGINT UNSIGNED  NOT NULL,
+  file_id     BIGINT UNSIGNED  NOT NULL,
+  sort_order  TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (message_id, file_id),
+  KEY ix_staff_chat_attachments_file (school_id, file_id),
+  CONSTRAINT fk_staff_chat_attachments_file FOREIGN KEY (school_id, file_id) REFERENCES files (school_id, id)
 ) ENGINE=InnoDB;
 
 -- =============================================================================

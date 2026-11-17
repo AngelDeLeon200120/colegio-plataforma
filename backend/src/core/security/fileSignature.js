@@ -39,10 +39,20 @@ const CHECKS = {
 /** Extensiones aceptadas en entregas de estudiantes. */
 export const SUBMISSION_EXTENSIONS = Object.keys(CHECKS);
 
+// Videos (solo donde se permiten explícitamente, como el chat del personal)
+const isIsoMedia = (b) => startsWith(b, ascii('ftyp'), 4);
+const isWebm = (b) => startsWith(b, [0x1a, 0x45, 0xdf, 0xa3]);
+const MEDIA_CHECKS = { mp4: isIsoMedia, m4v: isIsoMedia, mov: isIsoMedia, webm: isWebm };
+
+/** Chat del personal: documentos e imágenes de siempre + videos. */
+export const CHAT_EXTENSIONS = [...Object.keys(CHECKS), ...Object.keys(MEDIA_CHECKS)];
+export const VIDEO_EXTENSIONS = Object.keys(MEDIA_CHECKS);
+
 export const extensionOf = (fileName) => fileName.toLowerCase().split('.').pop();
 
 export function matchesSignature(file) {
-  const check = CHECKS[extensionOf(file.originalname)];
+  const extension = extensionOf(file.originalname);
+  const check = CHECKS[extension] ?? MEDIA_CHECKS[extension];
   return Boolean(check?.(file.buffer));
 }
 
@@ -54,6 +64,10 @@ const INLINE_TYPES = {
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   webp: 'image/webp',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
 };
 
 /** Content-Type seguro para servir el archivo. Lo desconocido se descarga como binario. */

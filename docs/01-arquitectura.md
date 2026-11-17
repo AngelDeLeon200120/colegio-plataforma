@@ -77,6 +77,7 @@ backend/
 │   │   ├── meetings/             # Reuniones virtuales por clase, con código único por reunión
 │   │   ├── calendar/             # Calendario general (eventos de la administración + reuniones + entregas)
 │   │   ├── conduct/              # Reportes de conducta hacia las familias, contador y seguimiento al llegar a 3
+│   │   ├── staffchat/            # Chat del personal: una sala por colegio con administración y docentes
 │   │   ├── files/                # Metadatos de archivos y URLs firmadas
 │   │   └── finance/              # Cargos, pagos, estados de cuenta
 │   │

@@ -22,6 +22,7 @@ import { MyActivitiesPage } from '@/features/homework/pages/MyActivitiesPage';
 import { MyActivityPage } from '@/features/homework/pages/MyActivityPage';
 import { MeetingsPage } from '@/features/meetings/MeetingsPage';
 import { MessagesPage } from '@/features/messages/MessagesPage';
+import { StaffChatPage } from '@/features/staffchat/StaffChatPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
 import { ReportCardPage } from '@/features/reportcard/ReportCardPage';
 import { ReviewSubmissionsPage } from '@/features/submissions/pages/ReviewSubmissionsPage';
@@ -61,6 +62,7 @@ export const router = createBrowserRouter([
               { path: 'courses', element: <CoursesPage /> },
               { path: 'courses/:courseId', element: <CoursePage /> },
               { path: 'conduct', element: <ConductPage /> },
+              { path: 'staff-chat', element: <StaffChatPage /> },
               { path: 'activities', element: <ActivitiesPage /> },
               { path: 'activities/:activityId/review', element: <ReviewSubmissionsPage /> },
               { path: 'gradebook', element: <GradebookIndexPage /> },

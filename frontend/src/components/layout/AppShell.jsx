@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Menu,
   MessageSquare,
+  MessagesSquare,
   School,
   ShieldAlert,
   Table2,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store';
 import { useMessagesLive, useUnreadMessages } from '@/features/messages/hooks';
+import { useStaffChatLive, useStaffChatUnread } from '@/features/staffchat/hooks';
 import { useNotificationsLive } from '@/features/notifications/hooks';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { NotificationToasts } from '@/features/notifications/NotificationToasts';
@@ -34,6 +36,8 @@ const homeItem = { to: '/home', label: 'Inicio', icon: Home };
 const meetingsItem = { to: '/meetings', label: 'Reuniones', icon: Video };
 const calendarItem = { to: '/calendar', label: 'Calendario', icon: CalendarDays };
 const conductItem = { to: '/conduct', label: 'Reportes', icon: ShieldAlert };
+const STAFF_CHAT_PATH = '/staff-chat';
+const staffChatItem = { to: STAFF_CHAT_PATH, label: 'Chat docentes', icon: MessagesSquare };
 
 const staffNavigation = [
   homeItem,
@@ -47,16 +51,17 @@ const staffNavigation = [
   calendarItem,
   conductItem,
   messagesItem,
+  staffChatItem,
   { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
 ];
 
 const NAVIGATION_BY_ROLE = {
   ADMIN: [
-    ...staffNavigation.slice(0, -2),
+    ...staffNavigation.slice(0, -3),
     { to: '/admin/people', label: 'Personas', icon: Users },
     { to: '/admin/academic', label: 'Estructura académica', icon: School },
     { to: '/admin/finance', label: 'Finanzas', icon: Wallet },
-    ...staffNavigation.slice(-2),
+    ...staffNavigation.slice(-3),
   ],
   TEACHER: staffNavigation,
   STUDENT: [
@@ -103,7 +108,9 @@ export function AppShell() {
   useNotificationsLive();
   useMessagesLive();
   const { data: unreadMessages = 0 } = useUnreadMessages();
-  const badges = { [NOTIFICATIONS_PATH]: unreadCount, [MESSAGES_PATH]: unreadMessages };
+  useStaffChatLive();
+  const { data: unreadStaffChat = 0 } = useStaffChatUnread();
+  const badges = { [NOTIFICATIONS_PATH]: unreadCount, [MESSAGES_PATH]: unreadMessages, [STAFF_CHAT_PATH]: unreadStaffChat };
 
   useEffect(() => setMobileOpen(false), [pathname]);
 

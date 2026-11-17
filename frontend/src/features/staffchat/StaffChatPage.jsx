@@ -1,0 +1,230 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AlertTriangle, Send, Trash2, Users } from 'lucide-react';
+import { Avatar } from '@/components/ui/Avatar';
+import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { useAuthStore } from '@/features/auth/store';
+import { cn } from '@/lib/cn';
+import { useDeleteStaffMessage, useMarkStaffChatRead, useSendStaffMessage, useStaffChatMembers, useStaffChatMessages } from './hooks';
+
+const ROLE = { ADMIN: 'Administración', TEACHER: 'Docente' };
+const dayFormat = new Intl.DateTimeFormat('es-GT', { weekday: 'long', day: 'numeric', month: 'long' });
+const timeFormat = new Intl.DateTimeFormat('es-GT', { hour: 'numeric', minute: '2-digit' });
+
+function dayLabel(date) {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return 'Hoy';
+  if (date.toDateString() === yesterday.toDateString()) return 'Ayer';
+  const text = dayFormat.format(date);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Sala del personal: la administración y todos los docentes del colegio conversan en un solo chat. */
+export function StaffChatPage() {
+  const me = useAuthStore((state) => state.user);
+  const { data, isLoading, isError, error, fetchPreviousPage, hasPreviousPage, isFetchingPreviousPage } = useStaffChatMessages();
+  const { data: members = [] } = useStaffChatMembers();
+  const send = useSendStaffMessage();
+  const remove = useDeleteStaffMessage();
+  const markRead = useMarkStaffChatRead();
+  const [text, setText] = useState('');
+  const [showMembers, setShowMembers] = useState(false);
+  const scroller = useRef(null);
+  const stickToBottom = useRef(true);
+  const previousHeight = useRef(null);
+
+  const messages = data?.pages.flatMap((page) => page.messages) ?? [];
+  const canModerate = data?.pages[0]?.canModerate ?? false;
+  const lastId = messages.at(-1)?.id;
+
+  // Al llegar mensajes nuevos se baja al final (salvo que la persona esté leyendo más arriba);
+  // al cargar anteriores se conserva la posición.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    if (previousHeight.current !== null) {
+      el.scrollTop = el.scrollHeight - previousHeight.current;
+      previousHeight.current = null;
+    } else if (stickToBottom.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages.length]);
+
+  // Leer la sala marca hasta el último mensaje (y baja el contador del menú)
+  useEffect(() => {
+    if (lastId && document.visibilityState === 'visible') markRead.mutate(lastId);
+  }, [lastId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadOlder = () => {
+    previousHeight.current = scroller.current?.scrollHeight ?? null;
+    fetchPreviousPage();
+  };
+
+  const submit = () => {
+    const body = text.trim();
+    if (!body || send.isPending) return;
+    stickToBottom.current = true;
+    send.mutate(body, { onSuccess: () => setText('') });
+  };
+
+  let previousDay = null;
+  let previousAuthor = null;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3 sm:px-6">
+        <span className="flex size-10 items-center justify-center rounded-full bg-brand-600 text-white">
+          <Users className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg text-zinc-900">Sala de docentes</h1>
+          <p className="truncate text-xs text-zinc-500">Administración y todos los docentes del colegio · solo el personal la ve</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowMembers((open) => !open)}
+          className="flex items-center gap-1.5 rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+          aria-expanded={showMembers}
+        >
+          <Users className="size-3.5" /> {members.length} miembros
+        </button>
+      </header>
+
+      {showMembers && (
+        <ul className="flex flex-wrap gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-2 sm:px-6">
+          {members.map((member) => (
+            <li key={member.id} className="flex items-center gap-1.5 rounded-full bg-white px-2 py-1 text-xs ring-1 ring-zinc-200">
+              <Avatar firstName={member.firstName} lastName={member.lastName} size="sm" />
+              {member.firstName} {member.lastName}
+              <span className="text-zinc-400">· {ROLE[member.role]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div
+        ref={scroller}
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        className="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 sm:px-6"
+      >
+        {isError && (
+          <p className="flex items-center gap-2 text-sm text-red-600">
+            <AlertTriangle className="size-4" /> {error.message}
+          </p>
+        )}
+        {isLoading && (
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-2/3 rounded-xl" />
+            <Skeleton className="ml-auto h-12 w-1/2 rounded-xl" />
+          </div>
+        )}
+        {hasPreviousPage && (
+          <div className="mb-3 flex justify-center">
+            <Button size="sm" onClick={loadOlder} loading={isFetchingPreviousPage}>
+              Ver mensajes anteriores
+            </Button>
+          </div>
+        )}
+        {data && messages.length === 0 && (
+          <p className="py-16 text-center text-sm text-zinc-500">Aún no hay mensajes. Escribe el primero para todo el personal.</p>
+        )}
+
+        <ol className="space-y-1">
+          {messages.map((message) => {
+            const date = new Date(message.createdAt);
+            const day = date.toDateString();
+            const newDay = day !== previousDay;
+            const grouped = !newDay && previousAuthor === message.author.id;
+            previousDay = day;
+            previousAuthor = message.author.id;
+            const mine = message.author.id === me.id;
+            const canDelete = !message.deleted && (mine || canModerate);
+            return (
+              <li key={message.id}>
+                {newDay && (
+                  <p className="my-3 text-center">
+                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-zinc-500 ring-1 ring-zinc-200">{dayLabel(date)}</span>
+                  </p>
+                )}
+                <div className={cn('group flex gap-2.5', mine && 'flex-row-reverse', !grouped && 'mt-3')}>
+                  <span className="w-8 shrink-0">{!grouped && !mine && <Avatar firstName={message.author.firstName} lastName={message.author.lastName} size="sm" />}</span>
+                  <div className={cn('flex max-w-[78%] min-w-0 flex-col', mine && 'items-end')}>
+                    {!grouped && !mine && (
+                      <p className="mb-0.5 text-xs text-zinc-500">
+                        <span className="font-medium text-zinc-700">
+                          {message.author.firstName} {message.author.lastName}
+                        </span>
+                        {message.author.role === 'ADMIN' && <span className="ml-1 text-brand-700">· Administración</span>}
+                      </p>
+                    )}
+                    <div className={cn('flex items-end gap-1.5', mine && 'flex-row-reverse')}>
+                      <p
+                        className={cn(
+                          'rounded-2xl px-3.5 py-2 text-sm break-words whitespace-pre-wrap',
+                          message.deleted
+                            ? 'bg-transparent text-zinc-400 italic ring-1 ring-zinc-200'
+                            : mine
+                              ? 'bg-brand-600 text-white'
+                              : 'bg-white text-zinc-900 ring-1 ring-zinc-200',
+                        )}
+                      >
+                        {message.deleted ? 'Mensaje eliminado' : message.body}
+                      </p>
+                      <span className="shrink-0 text-[10px] text-zinc-400" title={date.toLocaleString('es-GT')}>
+                        {timeFormat.format(date)}
+                      </span>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => window.confirm('¿Eliminar este mensaje para todos?') && remove.mutate(message.id)}
+                          className="rounded p-1 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-zinc-200 hover:text-red-600 focus-visible:opacity-100"
+                          aria-label="Eliminar mensaje"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <form
+        className="flex items-end gap-2 border-t border-zinc-200 bg-white px-4 py-3 sm:px-6"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter envía; Shift+Enter hace un salto de línea
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              submit();
+            }
+          }}
+          rows={1}
+          maxLength={4000}
+          placeholder="Escribe un mensaje para todo el personal"
+          aria-label="Mensaje"
+          className="block max-h-40 min-h-10 flex-1 resize-y rounded-2xl border border-zinc-300 px-4 py-2 text-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-100 focus:outline-none"
+        />
+        <Button type="submit" variant="primary" disabled={!text.trim()} loading={send.isPending}>
+          <Send className="size-4" /> Enviar
+        </Button>
+      </form>
+      {send.error && <p className="bg-white px-6 pb-2 text-xs text-red-600">{send.error.message}</p>}
+    </div>
+  );
+}

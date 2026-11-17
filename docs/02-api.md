@@ -286,6 +286,21 @@ Cada reporte guarda su **etapa** según cuántos lleva el estudiante en el ciclo
 
 Emite `conduct:changed` a la sala `school:`.
 
+### 2.8g Chat del personal (Sala de docentes)
+
+Una sala por colegio con la administración y todos los docentes activos. Solo roles `TEACHER` y `ADMIN` (familias y estudiantes reciben `403` y nunca reciben sus eventos).
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/staff-chat/messages?before=&limit=` | T, A | Últimos mensajes en orden cronológico (páginas de 50 hacia atrás) → `{ messages, hasMore, canModerate }`. Los eliminados vienen con `deleted: true` y sin texto |
+| POST | `/staff-chat/messages` | T, A | `{ body }` (máx. 4000) |
+| DELETE | `/staff-chat/messages/:id` | autor o A | Queda como "Mensaje eliminado" |
+| GET | `/staff-chat/members` | T, A | Administración y docentes activos |
+| GET | `/staff-chat/unread-count` | T, A | `{ count }` de mensajes ajenos sin leer (contador del menú) |
+| POST | `/staff-chat/read` | T, A | `{ messageId }`: marca leído hasta ese mensaje (solo avanza) |
+
+No crea notificaciones (el contador del menú basta). Eventos: `staffchat:new` `{ message }`, `staffchat:deleted` `{ messageId }` (a todo el personal) y `staffchat:read` (a la misma persona, para sus otras pestañas).
+
 ### 2.9 Finanzas
 
 | Método | Ruta | Roles | Descripción |

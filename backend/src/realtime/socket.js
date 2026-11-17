@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import { env } from '../config/env.js';
+import { isAllowedOrigin } from '../config/cors.js';
 import { pool } from '../config/database.js';
 import { logger } from '../core/utils/logger.js';
 import { verifyAccessToken } from '../core/middleware/authenticate.js';
@@ -24,7 +25,7 @@ async function canJoinCourseStaff(user, courseId) {
 
 export function initSocket(httpServer) {
   io = new Server(httpServer, {
-    cors: { origin: env.corsOrigins, credentials: true },
+    cors: { origin: (origin, callback) => callback(null, isAllowedOrigin(origin)), credentials: true },
   });
 
   // Handshake: mismo JWT y mismas reglas de sesión que la API REST

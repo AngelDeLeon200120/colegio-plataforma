@@ -10,6 +10,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Enlace público temporal para presentaciones (Cloudflare Tunnel: https://xxxx.trycloudflare.com)
+    allowedHosts: ['.trycloudflare.com'],
     // En desarrollo la API y el socket pasan por el mismo origen: sin CORS
     proxy: {
       '/api': 'http://localhost:4000',

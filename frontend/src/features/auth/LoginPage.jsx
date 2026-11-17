@@ -13,6 +13,8 @@ const LAST_SCHOOL_KEY = 'last-school-slug';
 function schoolFromHostname() {
   const { hostname } = window.location;
   if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) return null; // IPv4 / IPv6
+  // Enlace temporal de presentación (Cloudflare Tunnel): el subdominio es aleatorio, no un colegio
+  if (hostname.endsWith('.trycloudflare.com')) return null;
   const parts = hostname.split('.');
   return parts.length >= 3 && parts[0] !== 'www' ? parts[0] : null;
 }

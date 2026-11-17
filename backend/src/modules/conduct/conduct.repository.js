@@ -5,7 +5,7 @@ import { sectionVisibility } from '../academic/academic.visibility.js';
 export const FOLLOWUP_THRESHOLD = 3;
 
 const REPORT_COLUMNS = `
-  r.id, r.student_id, r.section_id, r.category, r.description, r.incident_date, r.status, r.void_reason, r.voided_at, r.created_at,
+  r.id, r.student_id, r.section_id, r.category, r.description, r.stage, r.incident_date, r.status, r.void_reason, r.voided_at, r.created_at,
   st.first_name, st.last_name, st.student_code,
   CONCAT(gl.short_name, ' ', sec.name) AS section_name,
   au.first_name AS author_first, au.last_name AS author_last, au.role AS author_role`;
@@ -21,6 +21,7 @@ const toReport = (row) => ({
   id: row.id,
   category: row.category,
   description: row.description,
+  stage: row.stage,
   incidentDate: row.incident_date,
   status: row.status,
   voidReason: row.void_reason,
@@ -162,11 +163,11 @@ class ConductRepository extends BaseRepository {
     return row && { ...toReport(row), academicYearId: row.academic_year_id };
   }
 
-  async insertReport({ yearId, studentId, sectionId, category, description, incidentDate, reportedBy }) {
+  async insertReport({ yearId, studentId, sectionId, category, description, stage, incidentDate, reportedBy }) {
     const result = await this.query(
-      `INSERT INTO conduct_reports (school_id, academic_year_id, student_id, section_id, category, description, incident_date, reported_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [this.schoolId, yearId, studentId, sectionId, category, description, incidentDate, reportedBy],
+      `INSERT INTO conduct_reports (school_id, academic_year_id, student_id, section_id, category, description, stage, incident_date, reported_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [this.schoolId, yearId, studentId, sectionId, category, description, stage, incidentDate, reportedBy],
     );
     return result.insertId;
   }

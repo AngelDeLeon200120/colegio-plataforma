@@ -11,7 +11,9 @@ import { cn } from '@/lib/cn';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { FollowupDialog } from './FollowupDialog';
 import { useConductLive, useConductReports, useConductStudents, useFollowups, useVoidReport } from './hooks';
-import { CATEGORIES, DECISIONS, FOLLOWUP_STATUS, counterTone } from './model';
+import { CATEGORIES, DECISIONS, FOLLOWUP_STATUS, STAGES, counterTone, stageFor } from './model';
+import { PrintWrittenButton, StageBadge, StageSteps } from './StageSteps';
+import { useAuthStore } from '@/features/auth/store';
 import { NewReportDialog } from './NewReportDialog';
 
 const TABS = [
@@ -94,7 +96,6 @@ function StudentsTab({ onReport, onOpenStudent }) {
             {section.name}
           </button>
         ))}
-        <span className="ml-auto text-xs text-zinc-500">Al llegar a {threshold} reportes en el ciclo se abre un seguimiento.</span>
       </div>
       {isError && <p className="text-sm text-red-600">{error.message}</p>}
       {isLoading && <Skeleton className="h-48 w-full rounded-lg" />}
@@ -114,6 +115,9 @@ function StudentsTab({ onReport, onOpenStudent }) {
                     {student.code} · {student.section.name}
                   </span>
                 </button>
+                {student.reportCount > 0 && (
+                  <span className="hidden text-xs text-zinc-500 sm:inline">Siguiente: {STAGES[stageFor(student.reportCount + 1)].label.toLowerCase()}</span>
+                )}
                 {student.followupStatus && <Badge tone={FOLLOWUP_STATUS[student.followupStatus].tone}>{FOLLOWUP_STATUS[student.followupStatus].label}</Badge>}
                 <span
                   className={cn(
@@ -138,6 +142,7 @@ function StudentsTab({ onReport, onOpenStudent }) {
 }
 
 function ReportsTab({ studentFilter, onClearStudent }) {
+  const schoolName = useAuthStore((state) => state.user?.school.name);
   const [category, setCategory] = useState('');
   const [includeVoid, setIncludeVoid] = useState(false);
   const [voiding, setVoiding] = useState(null);
@@ -183,6 +188,7 @@ function ReportsTab({ studentFilter, onClearStudent }) {
                       {report.student.lastName}, {report.student.firstName}
                     </span>
                     <span className="text-zinc-500">· {CATEGORIES[report.category].label}</span>
+                    {!voided && <StageBadge stage={report.stage} />}
                     {voided && <Badge tone="neutral">Anulado</Badge>}
                   </p>
                   <p className="mt-0.5 text-sm whitespace-pre-wrap text-zinc-700">{report.description}</p>
@@ -191,6 +197,7 @@ function ReportsTab({ studentFilter, onClearStudent }) {
                   </p>
                   {voided && <p className="text-xs text-zinc-500">Motivo de anulación: {report.voidReason}</p>}
                 </div>
+                {!voided && <PrintWrittenButton report={report} schoolName={schoolName} />}
                 {data.canVoid && !voided && (
                   <button
                     type="button"
@@ -281,7 +288,8 @@ export function ConductPage() {
           <h1 className="flex items-center gap-2 text-2xl font-normal text-zinc-900">
             <ShieldAlert className="size-6 text-red-600" /> Reportes de conducta
           </h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Cada reporte le llega a la familia. Al tercero, la institución decide el seguimiento.</p>
+          <p className="mt-0.5 text-sm text-zinc-500">Cada reporte le llega a la familia. Así escala durante el ciclo:</p>
+          <StageSteps count={0} className="mt-2" />
         </div>
         <Button variant="primary" onClick={() => setReporting({ student: null })}>
           <Plus className="size-4" /> Nuevo reporte
@@ -335,11 +343,15 @@ export function ConductPage() {
           onCreated={(result, student) => {
             setReporting(null);
             const name = student ? `${student.firstName} ${student.lastName}` : 'el estudiante';
-            setNotice(
-              result.followupOpened
-                ? { alert: true, text: `Reporte enviado. ${name} llegó a ${result.reportCount} reportes: se abrió un seguimiento para la administración.` }
-                : { alert: false, text: `Reporte enviado a la familia de ${name} (${result.reportCount} de ${result.threshold}).` },
-            );
+            const texts = {
+              AVISO: { alert: false, text: `Aviso enviado a la familia de ${name} (reporte ${result.reportCount} del ciclo).` },
+              ESCRITO: { alert: true, text: `Reporte escrito: es el reporte ${result.reportCount} de ${name}. Se notificó formalmente a la familia; el siguiente será citación a reunión.` },
+              REUNION: {
+                alert: true,
+                text: `${name} llegó a ${result.reportCount} reportes: ${result.followupOpened ? 'se abrió el seguimiento para citar a reunión con tutores o familia' : 'ya tiene un seguimiento de reunión'}.`,
+              },
+            };
+            setNotice(texts[result.stage] ?? texts.AVISO);
           }}
         />
       )}

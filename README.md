@@ -43,6 +43,7 @@ Y para los reportes de conducta:
 
 ```bash
 mysql -u root -p colegio_saas < database/migrations/003_reportes_conducta.sql
+mysql -u root -p colegio_saas < database/migrations/004_etapas_conducta.sql
 ```
 
 Para desarrollo crea un usuario propio en lugar de usar `root`:

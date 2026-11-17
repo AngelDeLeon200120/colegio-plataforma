@@ -28,3 +28,12 @@ export function counterTone(count, threshold) {
   if (count > 0) return 'blue';
   return 'neutral';
 }
+
+// 1.º aviso · 2.º reporte escrito · 3.º reunión con tutores o familia (y se repite)
+export const STAGES = {
+  AVISO: { step: 1, label: 'Aviso', long: 'Aviso a la familia', tone: 'blue' },
+  ESCRITO: { step: 2, label: 'Reporte escrito', long: 'Reporte escrito (notificación formal a la familia)', tone: 'amber' },
+  REUNION: { step: 3, label: 'Reunión', long: 'Reunión con tutores o familia', tone: 'red' },
+};
+
+export const stageFor = (count) => ['AVISO', 'ESCRITO', 'REUNION'][(count - 1) % 3];

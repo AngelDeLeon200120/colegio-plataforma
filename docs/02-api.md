@@ -282,6 +282,8 @@ Crear un evento, cambiarle fecha, hora o sección, o cancelarlo (si aún no pas�
 | PATCH | `/conduct/followups/:id` | A | `{ status, decision (CITA_FAMILIA|REUNION_TUTOR|OTRA), meetingAt, notes, outcome }`. Al fijar fecha, la familia recibe la citación |
 | GET | `/me/conduct?studentId=` | P (de sus hijos) | Reportes vigentes, contador y seguimientos (sin notas internas) |
 
+Cada reporte guarda su **etapa** según cuántos lleva el estudiante en el ciclo: 1.º `AVISO` (aviso a la familia), 2.º `ESCRITO` (reporte escrito: notificación formal `CONDUCT_WRITTEN`, HIGH, y constancia imprimible), 3.º `REUNION` (se abre el seguimiento para citar a tutores o familia). Luego se repite (4.º aviso, 5.º escrito, 6.º reunión).
+
 Emite `conduct:changed` a la sala `school:`.
 
 ### 2.9 Finanzas
@@ -422,7 +424,8 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 | "Me gusta" en una publicación | `PUT /feed/posts/:id/reaction` | Quien publicó (una vez por persona) | `POST_REACTION` | LOW |
 | Comentario en una publicación | `POST /feed/posts/:id/comments` | Quien publicó y quienes ya comentaron, menos el autor | `POST_COMMENT` | NORMAL |
 | Evento del calendario creado, con cambio de fecha o cancelado | `/calendar/events…` | Todo el colegio o la sección (estudiantes, familias, docentes, administración), menos quien lo hizo | `EVENT` | NORMAL (HIGH si es feriado o se cancela) |
-| Reporte de conducta | `POST /conduct/reports` | Familia del estudiante | `CONDUCT_REPORT` | NORMAL |
+| Reporte de conducta (aviso) | `POST /conduct/reports` | Familia del estudiante | `CONDUCT_REPORT` | NORMAL |
+| Reporte escrito (2.º del ciclo) | `POST /conduct/reports` | Familia del estudiante | `CONDUCT_WRITTEN` | HIGH |
 | Llega a 3 reportes (6, 9...) | `POST /conduct/reports` | Familia; administración y docente guía | `CONDUCT_FOLLOWUP` | HIGH |
 | Citación con fecha | `PATCH /conduct/followups/:id` | Familia del estudiante | `CONDUCT_FOLLOWUP` | HIGH |
 | Reunión programada, cambiada o cancelada | `/courses/:id/meetings`, `/meetings/:id…` | Estudiantes y familias de la clase | `MEETING` | NORMAL (HIGH si se cancela) |

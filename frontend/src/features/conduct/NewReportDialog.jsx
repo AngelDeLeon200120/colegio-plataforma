@@ -5,7 +5,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { Field, FormError, inputClass } from '@/components/ui/Field';
 import { cn } from '@/lib/cn';
 import { useConductStudents, useCreateReport } from './hooks';
-import { CATEGORIES } from './model';
+import { CATEGORIES, stageFor } from './model';
 
 const todayInput = () => new Date().toLocaleDateString('en-CA');
 
@@ -106,10 +106,21 @@ export function NewReportDialog({ defaultStudentId, onClose, onCreated }) {
           </Field>
         </div>
 
-        {selected && nextCount % threshold === 0 && (
-          <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 ring-1 ring-red-100">
+        {selected && (
+          <p
+            className={cn(
+              'flex items-start gap-2 rounded-lg px-3 py-2 text-xs ring-1',
+              { AVISO: 'bg-blue-50 text-blue-800 ring-blue-100', ESCRITO: 'bg-amber-50 text-amber-900 ring-amber-200', REUNION: 'bg-red-50 text-red-800 ring-red-100' }[stageFor(nextCount)],
+            )}
+          >
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-            Con este serán {nextCount} reportes: se abrirá un seguimiento y la administración decidirá si se cita a la familia o al tutor.
+            {
+              {
+                AVISO: `Será el reporte ${nextCount} del ciclo: aviso a la familia.`,
+                ESCRITO: `Será el reporte ${nextCount} del ciclo: queda como REPORTE ESCRITO y se notifica formalmente a la familia.`,
+                REUNION: `Será el reporte ${nextCount} del ciclo: se cita a REUNIÓN con los tutores o la familia (la administración programa la fecha).`,
+              }[stageFor(nextCount)]
+            }
           </p>
         )}
 

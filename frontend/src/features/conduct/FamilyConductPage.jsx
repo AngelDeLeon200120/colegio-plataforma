@@ -7,11 +7,14 @@ import { cn } from '@/lib/cn';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { useConductLive, useFamilyConduct } from './hooks';
 import { CATEGORIES, DECISIONS, FOLLOWUP_STATUS, counterTone } from './model';
+import { PrintWrittenButton, StageBadge, StageSteps } from './StageSteps';
+import { useAuthStore } from '@/features/auth/store';
 
 /** Familia: los reportes de conducta de su hijo o hija, el contador y el seguimiento de la institución. */
 export function FamilyConductPage() {
   const { children, studentId, selectStudent } = useViewedStudent();
   const { data, isLoading, isError, error } = useFamilyConduct(studentId);
+  const schoolName = useAuthStore((state) => state.user?.school.name);
   useConductLive();
   const child = children.find((item) => item.id === studentId);
   const tone = data ? counterTone(data.reportCount, data.threshold) : 'neutral';
@@ -46,11 +49,14 @@ export function FamilyConductPage() {
             <p className="min-w-0 flex-1 text-sm text-zinc-700">
               {data.reportCount === 0
                 ? 'Sin reportes en este ciclo. ¡Excelente!'
-                : data.reportCount < data.threshold
-                  ? `Reportes en el ciclo. Al llegar a ${data.threshold}, la institución se reúne con la familia o el tutor.`
-                  : 'Llegó al límite de reportes: la institución dará seguimiento con la familia.'}
+                : data.reportCount === 1
+                  ? 'Recibió un aviso. Si se repite, el siguiente quedará como reporte escrito.'
+                  : data.reportCount === 2
+                    ? 'Tiene un reporte escrito. Al siguiente reporte, la institución citará a reunión con los tutores o la familia.'
+                    : 'Llegó a la etapa de reunión: la institución citará a los tutores o a la familia.'}
             </p>
             {tone === 'neutral' ? <ShieldCheck className="size-8 text-emerald-600" /> : tone === 'red' && <AlertTriangle className="size-8 text-red-600" />}
+            <StageSteps count={data.reportCount} className="w-full" />
           </section>
 
           {active && (
@@ -92,12 +98,15 @@ export function FamilyConductPage() {
                         <look.icon className="size-4" />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-zinc-900">{look.label}</p>
+                        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-zinc-900">
+                          {look.label} <StageBadge stage={report.stage} />
+                        </p>
                         <p className="text-sm whitespace-pre-wrap text-zinc-700">{report.description}</p>
                         <p className="mt-1 text-xs text-zinc-500">
                           {formatDate(report.incidentDate)} · {report.reportedBy.name}
                         </p>
                       </div>
+                      <PrintWrittenButton report={report} schoolName={schoolName} />
                     </li>
                   );
                 })}

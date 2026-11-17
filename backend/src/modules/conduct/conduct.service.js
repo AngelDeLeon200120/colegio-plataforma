@@ -23,6 +23,11 @@ export const DECISION_LABELS = {
 };
 
 const STAFF = ['TEACHER', 'ADMIN'];
+
+export const STAGE_LABELS = { AVISO: 'Aviso', ESCRITO: 'Reporte escrito', REUNION: 'Reunión con tutores o familia' };
+
+/** Etapa según cuántos reportes lleva en el ciclo: 1 aviso, 2 escrito, 3 reunión; 4 aviso otra vez... */
+export const stageFor = (count) => ['AVISO', 'ESCRITO', 'REUNION'][(count - 1) % FOLLOWUP_THRESHOLD];
 const excerpt = (text, max = 160) => {
   const clean = text.replace(/\s+/g, ' ').trim();
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
@@ -79,26 +84,43 @@ export const conductService = {
     const result = await withTransaction(async (connection, afterCommit) => {
       const repo = conductRepository.withConnection(connection);
       const before = await repo.countActiveForUpdate(student.id, yearId);
+      const count = before + 1;
+      // 1.º aviso · 2.º reporte escrito · 3.º reunión con tutores o familia (y se repite)
+      const stage = stageFor(count);
       const reportId = await repo.insertReport({
         yearId,
         studentId: student.id,
         sectionId: student.sectionId,
         category,
         description,
+        stage,
         incidentDate,
         reportedBy: user.id,
       });
-      const count = before + 1;
-      const reachedThreshold = count % FOLLOWUP_THRESHOLD === 0;
-      const followupId = reachedThreshold ? await repo.openFollowup({ yearId, studentId: student.id, reportCount: count }) : null;
+      const followupId = stage === 'REUNION' ? await repo.openFollowup({ yearId, studentId: student.id, reportCount: count }) : null;
 
       const name = `${student.firstName} ${student.lastName}`;
       const guardians = await repo.findGuardianIds(student.id);
+      const familyNotice = {
+        AVISO: {
+          priority: 'NORMAL',
+          title: `Aviso de conducta de ${student.firstName}: ${CATEGORY_LABELS[category]}`,
+          body: `${excerpt(description)} · Primer aviso del ciclo. Si se repite, quedará como reporte escrito.`,
+        },
+        ESCRITO: {
+          priority: 'HIGH',
+          title: `Reporte escrito de ${student.firstName}: ${CATEGORY_LABELS[category]}`,
+          body: `${excerpt(description)} · Queda como reporte escrito en su expediente. Al siguiente, la institución citará a reunión con la familia.`,
+        },
+        REUNION: {
+          priority: 'HIGH',
+          title: `Reporte de conducta de ${student.firstName}: ${CATEGORY_LABELS[category]}`,
+          body: `${excerpt(description)} · Es el ${count}.º reporte del ciclo.`,
+        },
+      }[stage];
       const notifications = await notificationsService.createForUsers(connection, guardians, {
-        type: 'CONDUCT_REPORT',
-        priority: 'NORMAL',
-        title: `Reporte de conducta de ${student.firstName}: ${CATEGORY_LABELS[category]}`,
-        body: `${excerpt(description)} · Reportes en el ciclo: ${count}`,
+        type: stage === 'ESCRITO' ? 'CONDUCT_WRITTEN' : 'CONDUCT_REPORT',
+        ...familyNotice,
         entityType: 'conduct_report',
         entityId: reportId,
         studentId: student.id,
@@ -111,8 +133,8 @@ export const conductService = {
           ...(await notificationsService.createForUsers(connection, guardians, {
             type: 'CONDUCT_FOLLOWUP',
             priority: 'HIGH',
-            title: `${student.firstName} llegó a ${count} reportes de conducta`,
-            body: 'La institución dará seguimiento y se comunicará para coordinar una reunión con la familia.',
+            title: `Reunión con la familia: ${student.firstName} llegó a ${count} reportes`,
+            body: 'La institución citará a una reunión con los tutores o la familia. Les avisaremos la fecha.',
             entityType: 'conduct_followup',
             entityId: followupId,
             studentId: student.id,
@@ -126,7 +148,7 @@ export const conductService = {
             type: 'CONDUCT_FOLLOWUP',
             priority: 'HIGH',
             title: `${name} (${student.sectionName}) llegó a ${count} reportes`,
-            body: 'Decidir el seguimiento: citación a la familia, reunión con el tutor u otra medida.',
+            body: 'Programar la reunión con los tutores o la familia (o decidir otra medida).',
             entityType: 'conduct_followup',
             entityId: followupId,
             actionUrl: `/conduct?tab=followups`,
@@ -139,7 +161,7 @@ export const conductService = {
         notificationsService.publish(notifications);
         announce(user);
       });
-      return { id: reportId, reportCount: count, followupOpened: Boolean(followupId), threshold: FOLLOWUP_THRESHOLD };
+      return { id: reportId, reportCount: count, stage, followupOpened: Boolean(followupId), threshold: FOLLOWUP_THRESHOLD };
     });
     return result;
   },

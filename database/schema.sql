@@ -909,6 +909,7 @@ CREATE TABLE IF NOT EXISTS conduct_reports (
   section_id        BIGINT UNSIGNED NOT NULL,
   category          ENUM('LLEGADA_TARDE','FALTA_RESPETO','INDISCIPLINA','CELULAR','TAREA_COPIADA','OTRO') NOT NULL,
   description       TEXT            NOT NULL COMMENT 'Qué fue lo que pasó',
+  stage             ENUM('AVISO','ESCRITO','REUNION') NULL COMMENT 'Etapa con la que se notificó a la familia',
   incident_date     DATE            NOT NULL,
   reported_by       BIGINT UNSIGNED NOT NULL,
   status            ENUM('ACTIVE','VOID') NOT NULL DEFAULT 'ACTIVE',

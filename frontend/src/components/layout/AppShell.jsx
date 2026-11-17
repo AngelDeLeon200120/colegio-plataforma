@@ -33,7 +33,7 @@ const messagesItem = { to: MESSAGES_PATH, label: 'Mensajes', icon: MessageSquare
 const homeItem = { to: '/home', label: 'Inicio', icon: Home };
 const meetingsItem = { to: '/meetings', label: 'Reuniones', icon: Video };
 const calendarItem = { to: '/calendar', label: 'Calendario', icon: CalendarDays };
-const conductItem = { to: '/conduct', label: 'Conducta', icon: ShieldAlert };
+const conductItem = { to: '/conduct', label: 'Reportes', icon: ShieldAlert };
 
 const staffNavigation = [
   homeItem,
@@ -73,7 +73,7 @@ const NAVIGATION_BY_ROLE = {
     { to: '/my/activities', label: 'Tareas', icon: ClipboardCheck },
     { to: '/my/grades', label: 'Notas', icon: Award },
     { to: '/finance', label: 'Pagos', icon: Wallet },
-    { to: '/my/conduct', label: 'Conducta', icon: ShieldAlert },
+    { to: '/my/conduct', label: 'Reportes', icon: ShieldAlert },
     meetingsItem,
     calendarItem,
     messagesItem,

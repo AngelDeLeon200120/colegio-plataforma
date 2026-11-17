@@ -21,7 +21,7 @@ export function FamilyConductPage() {
     <div className="mx-auto w-full max-w-3xl overflow-y-auto px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-normal text-zinc-900">Conducta {child && `de ${child.firstName}`}</h1>
+          <h1 className="text-2xl font-normal text-zinc-900">Reportes de conducta {child && `de ${child.firstName}`}</h1>
           <p className="mt-0.5 text-sm text-zinc-500">Reportes de docentes y de la administración durante el ciclo.</p>
         </div>
         <StudentSwitcher students={children} studentId={studentId} onChange={selectStudent} />

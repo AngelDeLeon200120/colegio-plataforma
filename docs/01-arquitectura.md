@@ -76,6 +76,7 @@ backend/
 │   │   ├── feed/                 # Muro de Inicio: publica la administración; todos reaccionan y comentan
 │   │   ├── meetings/             # Reuniones virtuales por clase, con código único por reunión
 │   │   ├── calendar/             # Calendario general (eventos de la administración + reuniones + entregas)
+│   │   ├── conduct/              # Reportes de conducta hacia las familias, contador y seguimiento al llegar a 3
 │   │   ├── files/                # Metadatos de archivos y URLs firmadas
 │   │   └── finance/              # Cargos, pagos, estados de cuenta
 │   │

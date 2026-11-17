@@ -39,6 +39,12 @@ Y para el muro de Inicio, la mejora de notas, las reuniones virtuales y el calen
 mysql -u root -p colegio_saas < database/migrations/002_muro_reuniones_calendario.sql
 ```
 
+Y para los reportes de conducta:
+
+```bash
+mysql -u root -p colegio_saas < database/migrations/003_reportes_conducta.sql
+```
+
 Para desarrollo crea un usuario propio en lugar de usar `root`:
 
 ```sql

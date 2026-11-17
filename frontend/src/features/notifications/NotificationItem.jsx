@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Receipt,
   RotateCcw,
+  ShieldAlert,
   ThumbsUp,
   Video,
 } from 'lucide-react';
@@ -30,6 +31,8 @@ const LOOK = {
   MEETING: { icon: Video, className: 'bg-violet-50 text-violet-600' },
   POST: { icon: Megaphone, className: 'bg-amber-50 text-amber-700' },
   EVENT: { icon: CalendarDays, className: 'bg-sky-50 text-sky-700' },
+  CONDUCT_REPORT: { icon: ShieldAlert, className: 'bg-amber-50 text-amber-700' },
+  CONDUCT_FOLLOWUP: { icon: ShieldAlert, className: 'bg-red-50 text-red-600' },
   PAYMENT_REPORTED: { icon: Receipt, className: 'bg-amber-50 text-amber-700' },
   PAYMENT_REJECTED: { icon: AlertOctagon, className: 'bg-red-50 text-red-600' },
   POST_REACTION: { icon: ThumbsUp, className: 'bg-brand-50 text-brand-700' },

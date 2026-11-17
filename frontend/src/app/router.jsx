@@ -10,6 +10,8 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuthStore } from '@/features/auth/store';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
+import { ConductPage } from '@/features/conduct/ConductPage';
+import { FamilyConductPage } from '@/features/conduct/FamilyConductPage';
 import { FeedPage } from '@/features/feed/FeedPage';
 import { AdminFinancePage } from '@/features/finance/pages/AdminFinancePage';
 import { AdminStudentFinancePage } from '@/features/finance/pages/AdminStudentFinancePage';
@@ -58,6 +60,7 @@ export const router = createBrowserRouter([
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'courses', element: <CoursesPage /> },
               { path: 'courses/:courseId', element: <CoursePage /> },
+              { path: 'conduct', element: <ConductPage /> },
               { path: 'activities', element: <ActivitiesPage /> },
               { path: 'activities/:activityId/review', element: <ReviewSubmissionsPage /> },
               { path: 'gradebook', element: <GradebookIndexPage /> },
@@ -74,7 +77,10 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireAuth roles={['PARENT']} />,
-            children: [{ path: 'finance', element: <FamilyFinancePage /> }],
+            children: [
+              { path: 'finance', element: <FamilyFinancePage /> },
+              { path: 'my/conduct', element: <FamilyConductPage /> },
+            ],
           },
           {
             element: <RequireAuth roles={['ADMIN']} />,

@@ -12,6 +12,7 @@ import {
   Menu,
   MessageSquare,
   School,
+  ShieldAlert,
   Table2,
   Users,
   Video,
@@ -32,6 +33,7 @@ const messagesItem = { to: MESSAGES_PATH, label: 'Mensajes', icon: MessageSquare
 const homeItem = { to: '/home', label: 'Inicio', icon: Home };
 const meetingsItem = { to: '/meetings', label: 'Reuniones', icon: Video };
 const calendarItem = { to: '/calendar', label: 'Calendario', icon: CalendarDays };
+const conductItem = { to: '/conduct', label: 'Conducta', icon: ShieldAlert };
 
 const staffNavigation = [
   homeItem,
@@ -43,6 +45,7 @@ const staffNavigation = [
   { to: '/gradebook', label: 'Cuadro de notas', icon: Table2, alsoActive: (path) => path.endsWith('/gradebook') },
   meetingsItem,
   calendarItem,
+  conductItem,
   messagesItem,
   { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
 ];
@@ -70,6 +73,7 @@ const NAVIGATION_BY_ROLE = {
     { to: '/my/activities', label: 'Tareas', icon: ClipboardCheck },
     { to: '/my/grades', label: 'Notas', icon: Award },
     { to: '/finance', label: 'Pagos', icon: Wallet },
+    { to: '/my/conduct', label: 'Conducta', icon: ShieldAlert },
     meetingsItem,
     calendarItem,
     messagesItem,

@@ -270,6 +270,20 @@ Una publicación nueva crea una notificación `POST` para toda la comunidad acti
 
 Crear un evento, cambiarle fecha, hora o sección, o cancelarlo (si aún no pasó) crea una notificación `EVENT` para todo el colegio o, si es de una sección, para sus estudiantes, familias, docentes y la administración. Corregir solo el texto no avisa. El enlace `/calendar?event={id}&date=AAAA-MM-DD` abre el evento en su semana.
 
+### 2.8f Reportes de conducta
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | `/conduct/students?sectionId=` | T*, A | Estudiantes que la persona puede reportar (docente: sus secciones) con `reportCount` del ciclo y estado del último seguimiento |
+| GET | `/conduct/reports?studentId=&sectionId=&category=&includeVoid=` | T*, A | Reportes del ciclo activo |
+| POST | `/conduct/reports` | T*, A | `{ studentId, category (LLEGADA_TARDE|FALTA_RESPETO|INDISCIPLINA|CELULAR|TAREA_COPIADA|OTRO), description, incidentDate }`. Avisa a la familia. Al llegar a 3 reportes en el ciclo (y 6, 9...) abre un seguimiento y avisa a administración y docente guía |
+| POST | `/conduct/reports/:id/void` | A | `{ reason }`: anula (no borra); deja de contar |
+| GET | `/conduct/followups?status=` | T*, A | Seguimientos (PENDIENTE, PROGRAMADO, RESUELTO) |
+| PATCH | `/conduct/followups/:id` | A | `{ status, decision (CITA_FAMILIA|REUNION_TUTOR|OTRA), meetingAt, notes, outcome }`. Al fijar fecha, la familia recibe la citación |
+| GET | `/me/conduct?studentId=` | P (de sus hijos) | Reportes vigentes, contador y seguimientos (sin notas internas) |
+
+Emite `conduct:changed` a la sala `school:`.
+
 ### 2.9 Finanzas
 
 | Método | Ruta | Roles | Descripción |
@@ -408,6 +422,9 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 | "Me gusta" en una publicación | `PUT /feed/posts/:id/reaction` | Quien publicó (una vez por persona) | `POST_REACTION` | LOW |
 | Comentario en una publicación | `POST /feed/posts/:id/comments` | Quien publicó y quienes ya comentaron, menos el autor | `POST_COMMENT` | NORMAL |
 | Evento del calendario creado, con cambio de fecha o cancelado | `/calendar/events…` | Todo el colegio o la sección (estudiantes, familias, docentes, administración), menos quien lo hizo | `EVENT` | NORMAL (HIGH si es feriado o se cancela) |
+| Reporte de conducta | `POST /conduct/reports` | Familia del estudiante | `CONDUCT_REPORT` | NORMAL |
+| Llega a 3 reportes (6, 9...) | `POST /conduct/reports` | Familia; administración y docente guía | `CONDUCT_FOLLOWUP` | HIGH |
+| Citación con fecha | `PATCH /conduct/followups/:id` | Familia del estudiante | `CONDUCT_FOLLOWUP` | HIGH |
 | Reunión programada, cambiada o cancelada | `/courses/:id/meetings`, `/meetings/:id…` | Estudiantes y familias de la clase | `MEETING` | NORMAL (HIGH si se cancela) |
 
 `dedupe_key` por regla, para que reintentar un job no duplique:

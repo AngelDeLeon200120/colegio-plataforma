@@ -74,7 +74,9 @@ class FilesRepository extends BaseRepository {
                 SELECT 1 FROM payments p
                  WHERE p.school_id = f.school_id AND p.receipt_file_id = f.id AND ${guardianOf('p.student_id')})
            -- Adjunto del chat del personal: lo ven la administración y los docentes
-           OR (? = 'TEACHER' AND EXISTS (
+           OR (? = 'TEACHER'
+               AND NOT EXISTS (SELECT 1 FROM staff_chat_removed scr WHERE scr.school_id = f.school_id AND scr.user_id = ?)
+               AND EXISTS (
                 SELECT 1 FROM staff_chat_attachments sca
                   JOIN staff_chat_messages scm ON scm.school_id = sca.school_id AND scm.id = sca.message_id AND scm.deleted_at IS NULL
                  WHERE sca.school_id = f.school_id AND sca.file_id = f.id))
@@ -84,7 +86,7 @@ class FilesRepository extends BaseRepository {
                  WHERE p.school_id = f.school_id AND p.image_file_id = f.id AND p.deleted_at IS NULL)
         )`,
       // El último user.id es el de la familia en el comprobante de pago
-      [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.role],
+      [this.schoolId, fileId, user.role, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.id, user.role, user.id],
     );
     return toFile(row);
   }

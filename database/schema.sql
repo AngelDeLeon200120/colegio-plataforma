@@ -994,6 +994,18 @@ CREATE TABLE IF NOT EXISTS staff_chat_attachments (
   CONSTRAINT fk_staff_chat_attachments_file FOREIGN KEY (school_id, file_id) REFERENCES files (school_id, id)
 ) ENGINE=InnoDB;
 
+-- Docentes que la administración sacó del chat del personal (migración 007)
+CREATE TABLE IF NOT EXISTS staff_chat_removed (
+  school_id   BIGINT UNSIGNED NOT NULL,
+  user_id     BIGINT UNSIGNED NOT NULL,
+  removed_by  BIGINT UNSIGNED NOT NULL,
+  removed_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  KEY ix_staff_chat_removed_school (school_id),
+  CONSTRAINT fk_staff_chat_removed_user FOREIGN KEY (school_id, user_id) REFERENCES users (school_id, id) ON DELETE CASCADE,
+  CONSTRAINT fk_staff_chat_removed_by   FOREIGN KEY (school_id, removed_by) REFERENCES users (school_id, id)
+) ENGINE=InnoDB;
+
 -- =============================================================================
 -- 10. CONSULTAS DE REFERENCIA (patrones que usarán los repositorios)
 -- =============================================================================

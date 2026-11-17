@@ -22,7 +22,15 @@ async function withAttachments(messages) {
   return messages.map((message) => ({ ...message, attachments: message.deleted ? [] : (attachments[message.id] ?? []) }));
 }
 
+async function assertMember(user) {
+  if (!(await staffChatRepository.isMember(user))) {
+    throw AppError.forbidden('La administración te quitó de la sala de docentes');
+  }
+}
+
 export const staffChatService = {
+  assertMember,
+
   async messages(user, { before, limit }) {
     const page = await staffChatRepository.listMessages({ beforeId: before, limit });
     const hasMore = page.length > limit;
@@ -32,8 +40,27 @@ export const staffChatService = {
 
   members: () => staffChatRepository.listMembers(),
 
+  /** También dice si la persona está en la sala (el menú oculta la opción si no). */
   async unreadCount(user) {
-    return { count: await staffChatRepository.countUnread(user.id) };
+    if (!(await staffChatRepository.isMember(user))) return { count: 0, member: false };
+    return { count: await staffChatRepository.countUnread(user.id), member: true };
+  },
+
+  roster: () => staffChatRepository.listRoster(),
+
+  /**
+   * La administración incluye o saca a un docente de la sala. Solo docentes activos del mismo
+   * colegio (la administración siempre está). Avisa en vivo a esa persona y a la sala.
+   */
+  async setMembership(user, userId, included) {
+    const teacher = await staffChatRepository.findTeacher(userId);
+    if (!teacher) throw AppError.notFound('Docente no encontrado en este colegio');
+    if (included) await staffChatRepository.includeMember(teacher.id);
+    else await staffChatRepository.removeMember(teacher.id, user.id);
+
+    emitToUsers([teacher.id], 'staffchat:membership', { member: included });
+    await broadcast('staffchat:members', { userId: teacher.id, included });
+    return { userId: teacher.id, included };
   },
 
   /** Texto, adjuntos (fotos, videos, documentos) o ambos. */

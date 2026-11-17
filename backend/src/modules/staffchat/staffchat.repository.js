@@ -73,15 +73,64 @@ class StaffChatRepository extends BaseRepository {
     ]);
   }
 
-  /** Administración y docentes activos del colegio: los miembros de la sala. */
+  /** Miembros de la sala: la administración y los docentes activos que no fueron sacados. */
   async listMembers() {
     const rows = await this.query(
-      `SELECT id, first_name, last_name, role FROM users
-        WHERE school_id = ? AND role IN ('ADMIN', 'TEACHER') AND status = 'ACTIVE' AND deleted_at IS NULL
-        ORDER BY FIELD(role, 'ADMIN', 'TEACHER'), first_name, last_name`,
+      `SELECT u.id, u.first_name, u.last_name, u.role FROM users u
+        WHERE u.school_id = ? AND u.role IN ('ADMIN', 'TEACHER') AND u.status = 'ACTIVE' AND u.deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM staff_chat_removed r WHERE r.school_id = u.school_id AND r.user_id = u.id)
+        ORDER BY FIELD(u.role, 'ADMIN', 'TEACHER'), u.first_name, u.last_name`,
       [this.schoolId],
     );
     return rows.map((row) => ({ id: row.id, firstName: row.first_name, lastName: row.last_name, role: row.role }));
+  }
+
+  /** ¿Está en la sala? La administración siempre; un docente, si no lo sacaron. */
+  async isMember(user) {
+    if (user.role === 'ADMIN') return true;
+    if (user.role !== 'TEACHER') return false;
+    const row = await this.one('SELECT 1 AS removed FROM staff_chat_removed WHERE school_id = ? AND user_id = ?', [this.schoolId, user.id]);
+    return !row;
+  }
+
+  /** Para la administración: todo el personal activo del colegio y si está en la sala. */
+  async listRoster() {
+    const rows = await this.query(
+      `SELECT u.id, u.first_name, u.last_name, u.role, r.removed_at, rb.first_name AS by_first, rb.last_name AS by_last
+         FROM users u
+         LEFT JOIN staff_chat_removed r ON r.school_id = u.school_id AND r.user_id = u.id
+         LEFT JOIN users rb             ON rb.school_id = r.school_id AND rb.id = r.removed_by
+        WHERE u.school_id = ? AND u.role IN ('ADMIN', 'TEACHER') AND u.status = 'ACTIVE' AND u.deleted_at IS NULL
+        ORDER BY FIELD(u.role, 'ADMIN', 'TEACHER'), u.first_name, u.last_name`,
+      [this.schoolId],
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.role,
+      included: !row.removed_at,
+      removedAt: row.removed_at,
+      removedBy: row.by_first ? `${row.by_first} ${row.by_last}` : null,
+    }));
+  }
+
+  /** Docente activo de este colegio (el filtro por school_id impide tocar a alguien de otro colegio). */
+  async findTeacher(userId) {
+    const row = await this.one(
+      `SELECT id, first_name, last_name FROM users
+        WHERE school_id = ? AND id = ? AND role = 'TEACHER' AND status = 'ACTIVE' AND deleted_at IS NULL`,
+      [this.schoolId, userId],
+    );
+    return row && { id: row.id, firstName: row.first_name, lastName: row.last_name };
+  }
+
+  async removeMember(userId, removedBy) {
+    await this.query('INSERT IGNORE INTO staff_chat_removed (school_id, user_id, removed_by) VALUES (?, ?, ?)', [this.schoolId, userId, removedBy]);
+  }
+
+  async includeMember(userId) {
+    await this.query('DELETE FROM staff_chat_removed WHERE school_id = ? AND user_id = ?', [this.schoolId, userId]);
   }
 
   /** Mensajes de otras personas posteriores a lo último que leyó. */

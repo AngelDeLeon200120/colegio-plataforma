@@ -109,12 +109,14 @@ export function AppShell() {
   useMessagesLive();
   const { data: unreadMessages = 0 } = useUnreadMessages();
   useStaffChatLive();
-  const { data: unreadStaffChat = 0 } = useStaffChatUnread();
+  const { data: staffChat } = useStaffChatUnread();
+  const unreadStaffChat = staffChat?.count ?? 0;
   const badges = { [NOTIFICATIONS_PATH]: unreadCount, [MESSAGES_PATH]: unreadMessages, [STAFF_CHAT_PATH]: unreadStaffChat };
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
-  const navigation = NAVIGATION_BY_ROLE[role] ?? [];
+  // Si la administración sacó a este docente de la sala, la opción no aparece
+  const navigation = (NAVIGATION_BY_ROLE[role] ?? []).filter((item) => item.to !== STAFF_CHAT_PATH || staffChat?.member !== false);
   const isActive = ({ to, end, alsoActive }) =>
     (end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`)) || Boolean(alsoActive?.(pathname));
 

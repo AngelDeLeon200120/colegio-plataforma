@@ -7,6 +7,8 @@ import { getSocket } from '@/lib/socket';
 export const staffChatApi = {
   messages: ({ before } = {}) => api(`/staff-chat/messages${before ? `?before=${before}` : ''}`),
   members: () => api('/staff-chat/members'),
+  roster: () => api('/staff-chat/roster'),
+  setMembership: (userId, included) => api(`/staff-chat/members/${userId}`, { method: 'PUT', body: { included } }),
   unread: () => api('/staff-chat/unread-count'),
   /** Solo texto: JSON como siempre. Con adjuntos: multipart con progreso de subida (0 a 1). */
   send({ body, files = [], onProgress }) {
@@ -25,14 +27,15 @@ export const staffChatKeys = {
   messages: ['staff-chat', 'messages'],
   unread: ['staff-chat', 'unread'],
   members: ['staff-chat', 'members'],
+  roster: ['staff-chat', 'roster'],
 };
 
 const isStaff = (role) => role === 'TEACHER' || role === 'ADMIN';
 
-/** Contador del menú. Solo para el personal. */
+/** Contador del menú y si la persona está en la sala. Solo para el personal. */
 export function useStaffChatUnread() {
   const role = useAuthStore((state) => state.user?.role);
-  return useQuery({ queryKey: staffChatKeys.unread, queryFn: staffChatApi.unread, enabled: isStaff(role), select: (data) => data.count });
+  return useQuery({ queryKey: staffChatKeys.unread, queryFn: staffChatApi.unread, enabled: isStaff(role) });
 }
 
 /**
@@ -59,22 +62,36 @@ export function useStaffChatLive() {
       if (data.message.author.id !== myId) queryClient.invalidateQueries({ queryKey: staffChatKeys.unread });
     };
     const onDeleted = ({ data }) => {
-      queryClient.setQueryData(staffChatKeys.messages, (current) =>
-        current && {
-          ...current,
-          pages: current.pages.map((page) => ({
-            ...page,
-            messages: page.messages.map((message) => (message.id === data.messageId ? { ...message, body: null, deleted: true } : message)),
-          })),
-        },
+      queryClient.setQueryData(
+        staffChatKeys.messages,
+        (current) =>
+          current && {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((message) =>
+                message.id === data.messageId ? { ...message, body: null, deleted: true } : message,
+              ),
+            })),
+          },
       );
       queryClient.invalidateQueries({ queryKey: staffChatKeys.unread });
     };
     const onRead = () => queryClient.invalidateQueries({ queryKey: staffChatKeys.unread });
+    // La administración me incluyó o me sacó: menú, sala y contador se actualizan
+    const onMembership = () => queryClient.invalidateQueries({ queryKey: staffChatKeys.all });
+    const onMembers = () => {
+      queryClient.invalidateQueries({ queryKey: staffChatKeys.members });
+      queryClient.invalidateQueries({ queryKey: staffChatKeys.roster });
+    };
     socket.on('staffchat:new', onNew);
     socket.on('staffchat:deleted', onDeleted);
     socket.on('staffchat:read', onRead);
+    socket.on('staffchat:membership', onMembership);
+    socket.on('staffchat:members', onMembers);
     return () => {
+      socket.off('staffchat:membership', onMembership);
+      socket.off('staffchat:members', onMembers);
       socket.off('staffchat:new', onNew);
       socket.off('staffchat:deleted', onDeleted);
       socket.off('staffchat:read', onRead);
@@ -94,7 +111,21 @@ export function useStaffChatMessages() {
   });
 }
 
-export const useStaffChatMembers = () => useQuery({ queryKey: staffChatKeys.members, queryFn: staffChatApi.members, staleTime: 5 * 60_000 });
+export const useStaffChatRoster = (enabled) => useQuery({ queryKey: staffChatKeys.roster, queryFn: staffChatApi.roster, enabled });
+
+export function useSetMembership() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, included }) => staffChatApi.setMembership(userId, included),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: staffChatKeys.roster });
+      queryClient.invalidateQueries({ queryKey: staffChatKeys.members });
+    },
+  });
+}
+
+export const useStaffChatMembers = () =>
+  useQuery({ queryKey: staffChatKeys.members, queryFn: staffChatApi.members, staleTime: 5 * 60_000 });
 
 export function useSendStaffMessage() {
   const queryClient = useQueryClient();

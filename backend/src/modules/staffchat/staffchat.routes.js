@@ -13,16 +13,36 @@ const listQuery = z.object({ before: id.optional(), limit: z.coerce.number().int
 export const staffChatRouter = Router();
 staffChatRouter.use('/staff-chat', authorize('TEACHER', 'ADMIN'));
 
+// La administración decide quién está en la sala
+const admin = authorize('ADMIN');
+staffChatRouter.get('/staff-chat/roster', admin, async (req, res) => {
+  res.json({ data: await staffChatService.roster() });
+});
+staffChatRouter.put(
+  '/staff-chat/members/:userId',
+  admin,
+  validate({ params: z.object({ userId: id }), body: z.object({ included: z.boolean() }) }),
+  async (req, res) => {
+    res.json({ data: await staffChatService.setMembership(req.user, req.valid.params.userId, req.valid.body.included) });
+  },
+);
+
+staffChatRouter.get('/staff-chat/unread-count', async (req, res) => {
+  res.json({ data: await staffChatService.unreadCount(req.user) });
+});
+
+// Lo demás: solo quien está en la sala
+staffChatRouter.use('/staff-chat', async (req, res, next) => {
+  await staffChatService.assertMember(req.user);
+  next();
+});
+
 staffChatRouter.get('/staff-chat/messages', validate({ query: listQuery }), async (req, res) => {
   res.json({ data: await staffChatService.messages(req.user, req.valid.query) });
 });
 
 staffChatRouter.get('/staff-chat/members', async (req, res) => {
   res.json({ data: await staffChatService.members() });
-});
-
-staffChatRouter.get('/staff-chat/unread-count', async (req, res) => {
-  res.json({ data: await staffChatService.unreadCount(req.user) });
 });
 
 // Hasta 5 adjuntos de 50 MB (fotos, videos, documentos). También acepta JSON solo con texto.

@@ -297,8 +297,10 @@ Una sala por colegio con la administración y todos los docentes activos. Solo r
 | GET | `/staff-chat/messages?before=&limit=` | T, A | Últimos mensajes en orden cronológico (páginas de 50 hacia atrás) → `{ messages, hasMore, canModerate }`. Los eliminados vienen con `deleted: true` y sin texto |
 | POST | `/staff-chat/messages` | T, A | JSON `{ body }` (máx. 4000) o multipart `{ body?, files[] }`: hasta 5 adjuntos de 50 MB — fotos (JPG, PNG, GIF, WEBP, HEIC), **videos (MP4, M4V, MOV, WEBM)**, PDF, Word, Excel, PowerPoint, ZIP; se verifica el contenido. Texto o adjuntos (al menos uno). Cada mensaje trae `attachments[]`; solo el personal puede abrirlos |
 | DELETE | `/staff-chat/messages/:id` | autor o A | Queda como "Mensaje eliminado" |
-| GET | `/staff-chat/members` | T, A | Administración y docentes activos |
-| GET | `/staff-chat/unread-count` | T, A | `{ count }` de mensajes ajenos sin leer (contador del menú) |
+| GET | `/staff-chat/members` | T, A | Miembros: administración y docentes activos que no fueron sacados |
+| GET | `/staff-chat/roster` | A | Todo el personal activo del colegio con `included`, `removedAt`, `removedBy` |
+| PUT | `/staff-chat/members/:userId` | A | `{ included }`: saca o vuelve a incluir a un **docente del mismo colegio** (otro colegio o la administración → `404`). Quien está fuera recibe `403` en la sala y deja de recibir sus eventos; ya no abre los adjuntos de otros. Emite `staffchat:membership` a esa persona y `staffchat:members` a la sala |
+| GET | `/staff-chat/unread-count` | T, A | `{ count, member }`: mensajes ajenos sin leer y si la persona está en la sala (el menú oculta la opción si no) |
 | POST | `/staff-chat/read` | T, A | `{ messageId }`: marca leído hasta ese mensaje (solo avanza) |
 
 No crea notificaciones (el contador del menú basta). Eventos: `staffchat:new` `{ message }`, `staffchat:deleted` `{ messageId }` (a todo el personal) y `staffchat:read` (a la misma persona, para sus otras pestañas).

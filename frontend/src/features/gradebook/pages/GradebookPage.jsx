@@ -47,7 +47,7 @@ function Sheet({ courseId, sheet, sheetKey }) {
   const [importOpen, setImportOpen] = useState(false);
   const [notice, setNotice] = useState(null);
   useGradebookLiveUpdates(courseId, sheetKey);
-  // Pagos pendientes de la unidad: al docente se le tachan esas notas (solo visual)
+  // Pagos pendientes de la unidad: al docente se le muestran en rojo esas notas (solo visual)
   const { data: paymentData } = usePaymentStatus(courseId, sheet.unit.id);
   const payment = useMemo(
     () => paymentData && { unpaid: new Set(paymentData.unpaidStudentIds), obscure: paymentData.obscureScores, details: paymentData.details ?? {} },

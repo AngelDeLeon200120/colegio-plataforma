@@ -236,7 +236,7 @@ export const gradebookService = {
   },
 
   /**
-   * Quién tiene pagos pendientes en la unidad. Al docente se le muestran sus notas tachadas;
+   * Quién tiene pagos pendientes en la unidad. Al docente se le muestran sus notas en rojo;
    * solo es visual: guardar, importar y calcular sigue igual.
    */
   async paymentStatus(user, courseId, { unitId }) {

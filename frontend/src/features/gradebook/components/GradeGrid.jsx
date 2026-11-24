@@ -101,8 +101,8 @@ const wrap = (index, start, size) => start + ((((index - start) % size) + size) 
 
 const inArea = (area, row, col) => area && row >= area.top && row <= area.bottom && col >= area.left && col <= area.right;
 
-// Nota de un estudiante con pagos pendientes: tachada y borrosa para el docente (solo visual)
-const OBSCURED = 'text-zinc-400 line-through decoration-red-500 decoration-2 blur-[2.5px]';
+// Nota de un estudiante con pagos pendientes: en rojo para el docente (solo visual)
+const UNPAID_SCORE = 'text-red-600';
 
 export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
   const { items, students, readOnly, totalLimit } = sheet;
@@ -427,7 +427,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
         ) : cell.value === null ? (
           ''
         ) : (
-          <span className={cn(obscured && OBSCURED)}>{formatScore(cell.value)}</span>
+          <span className={cn(obscured && UNPAID_SCORE)}>{formatScore(cell.value)}</span>
         )}
         {showHandle && (
           <span
@@ -587,7 +587,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                       total !== null && total < passingTotal ? 'text-red-600' : 'text-zinc-900',
                     )}
                   >
-                    {total === null ? '—' : <span className={cn(obscured && OBSCURED)}>{formatScore(round(total))}</span>}
+                    {total === null ? '—' : <span className={cn(obscured && UNPAID_SCORE)}>{formatScore(round(total))}</span>}
                   </td>
                   {hasExams && (
                     <>
@@ -599,7 +599,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                         )}
                         title="Total + Parcial + Evaluación"
                       >
-                        {final === null ? '—' : <span className={cn(obscured && OBSCURED)}>{formatScore(round(final))}</span>}
+                        {final === null ? '—' : <span className={cn(obscured && UNPAID_SCORE)}>{formatScore(round(final))}</span>}
                       </td>
                     </>
                   )}
@@ -692,7 +692,7 @@ function PaymentDetailDialog({ student, charges, onClose }) {
       open
       onClose={onClose}
       title={`Pago pendiente · ${student.firstName} ${student.lastName}`}
-      description="Cobros de esta unidad vencidos y sin pagar. Sus notas se ven tachadas hasta que la administración registre el pago."
+      description="Cobros de esta unidad vencidos y sin pagar. Sus notas se ven en rojo hasta que la administración registre el pago."
       footer={<Button onClick={onClose}>Cerrar</Button>}
     >
       {charges.length === 0 ? (

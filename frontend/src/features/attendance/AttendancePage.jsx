@@ -10,7 +10,7 @@ import { useMyCourses } from '@/features/gradebook/hooks';
 import { cn } from '@/lib/cn';
 import { formatDate, formatScore } from '@/lib/format';
 import { useAttendanceSheet, useRemoveAttendance, useSaveAttendance } from './hooks';
-import { ABSENT, EXCUSED, PRESENT, cellKey, changedDates, effectiveStatus, statusOf, summarize, toDays } from './model';
+import { ABSENT, PRESENT, cellKey, changedDates, effectiveStatus, statusOf, summarize, toDays } from './model';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const longDate = (date) => formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -46,7 +46,7 @@ function RemoveDayDialog({ date, courseId, onClose, onRemoved }) {
   );
 }
 
-/** Hoja de asistencia: una fila por estudiante y una columna por día con su check. */
+/** Hoja de asistencia: una fila por estudiante y una columna por día con su check (vino) o equis (faltó). */
 function AttendanceSheet({ sheet, courseId }) {
   const [changes, setChanges] = useState({}); // "fecha:estudiante" → estado sin guardar
   const [extraDates, setExtraDates] = useState([]);
@@ -90,7 +90,6 @@ function AttendanceSheet({ sheet, courseId }) {
     });
   };
   const togglePresent = (date, studentId) => setStatus(date, studentId, statusOf(sheet, changes, date, studentId) === PRESENT ? ABSENT : PRESENT);
-  const toggleExcused = (date, studentId) => setStatus(date, studentId, statusOf(sheet, changes, date, studentId) === EXCUSED ? ABSENT : EXCUSED);
   const markAll = () => students.forEach((student) => setStatus(activeDate, student.id, PRESENT));
 
   const addDate = (date) => {
@@ -118,9 +117,6 @@ function AttendanceSheet({ sheet, courseId }) {
     } else if (event.key === ' ' || event.key.toLowerCase() === 'x') {
       event.preventDefault();
       togglePresent(activeDate, students[activeRow].id);
-    } else if (event.key.toLowerCase() === 'j') {
-      event.preventDefault();
-      toggleExcused(activeDate, students[activeRow].id);
     }
   };
 
@@ -150,13 +146,6 @@ function AttendanceSheet({ sheet, courseId }) {
         <span className="text-sm font-medium text-zinc-900 first-letter:uppercase">{longDate(activeDate)}</span>
         <Button size="sm" onClick={markAll}>
           <CheckCheck className="size-4" /> Todos vinieron
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => toggleExcused(activeDate, students[activeRow].id)}
-          title={`Falta justificada de ${students[activeRow].firstName} ${students[activeRow].lastName} en este día (no cuenta)`}
-        >
-          Justificar falta
         </Button>
         {activeSaved && (
           <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} disabled={save.isPending || dirty} title={dirty ? 'Guarda primero los cambios' : undefined}>
@@ -277,11 +266,8 @@ function AttendanceSheet({ sheet, courseId }) {
         <span className="flex items-center gap-1">
           <span className="font-bold text-red-600">✗</span> faltó
         </span>
-        <span className="flex items-center gap-1">
-          <span className="font-bold text-amber-700">J</span> justificada (no cuenta)
-        </span>
         <span className="max-lg:hidden">
-          Flechas para moverte · <Kbd>Espacio</Kbd> marcar · <Kbd>J</Kbd> justificar
+          Flechas para moverte · <Kbd>Espacio</Kbd> marcar
         </span>
         <span className="ml-auto">
           {Math.round(sheet.goodAttendance * 100)}% o más = {formatScore(sheet.maxScore)} puntos
@@ -338,7 +324,6 @@ function DayHeader({ date, today, active, changed, onSelect }) {
 const MARKS = {
   [PRESENT]: { text: '✓', label: 'vino', className: 'text-emerald-700' },
   [ABSENT]: { text: '✗', label: 'faltó', className: 'text-red-600' },
-  [EXCUSED]: { text: 'J', label: 'justificada', className: 'text-amber-700' },
 };
 
 function DayCell({ id, status, active, changed, label, onClick }) {

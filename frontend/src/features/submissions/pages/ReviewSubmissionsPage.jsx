@@ -94,51 +94,64 @@ function PageHeader({ activity, summary }) {
 
 export function ReviewSubmissionsPage() {
   const { activityId } = useParams();
-  const [filter, setFilter] = useState('SUBMITTED');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const autoOpened = useRef(false); // la primera entrega se abre sola una vez
-  const scrollToSelected = useRef(false);
+  const scrollTarget = useRef(null); // alumno que debe quedar a la vista al abrirse
 
   const { data, isLoading, isError, error, refetch } = useActivitySubmissions(activityId);
   const review = useReviewSubmission(activityId);
   const resetReview = review.reset;
   useSubmissionLiveUpdates(activityId, data?.activity.courseId);
 
-  const reviewingId = review.isPending ? review.variables.submissionId : null;
-
   const visibleItems = useMemo(() => {
     if (!data) return [];
     const term = normalize(search.trim());
     return data.items.filter((item) => {
-      // La que se está revisando sigue a la vista hasta que el servidor responde (si falla, no se pierde lo escrito)
-      if (item.id === reviewingId) return true;
-      if (filter !== 'ALL' && item.status !== filter) return false;
       if (!term) return true;
       const { firstName, lastName, code } = item.student;
       return normalize(`${firstName} ${lastName} ${code}`).includes(term);
     });
-  }, [data, filter, search, reviewingId]);
+  }, [data, search]);
 
   // Abrir automáticamente la primera entrega por revisar
   useEffect(() => {
-    if (autoOpened.current || filter !== 'SUBMITTED' || visibleItems.length === 0) return;
+    const first = autoOpened.current ? null : data?.items.find((item) => item.status === 'SUBMITTED');
+    if (!first) return;
     autoOpened.current = true;
-    setSelectedId(visibleItems[0].id);
-  }, [visibleItems, filter]);
+    setSelectedId((current) => current ?? first.id);
+  }, [data]);
 
   // Al abrir otra, la anterior se pliega y la lista se mueve: el alumno elegido queda a la vista
+  const showSelected = (id) => document.getElementById(`entrega-${id}`)?.scrollIntoView({ block: 'start' });
   useEffect(() => {
-    if (!scrollToSelected.current) return;
-    scrollToSelected.current = false;
-    document.getElementById(`entrega-${selectedId}`)?.scrollIntoView({ block: 'start' });
+    if (selectedId !== null && scrollTarget.current === selectedId) showSelected(selectedId);
   }, [selectedId]);
+  const onDetailReady = (id) => {
+    if (scrollTarget.current !== id) return;
+    scrollTarget.current = null;
+    showSelected(id);
+  };
 
   /** Abre la entrega de un alumno; si ya estaba abierta, la pliega. */
   const toggle = (id) => {
+    autoOpened.current = true;
     resetReview();
-    scrollToSelected.current = id !== selectedId;
+    scrollTarget.current = id === selectedId ? null : id;
     setSelectedId(id === selectedId ? null : id);
+  };
+
+  /** Desde el listado de quienes entregaron y quienes no: abre a ese alumno y lo deja a la vista. */
+  const open = (id) => {
+    autoOpened.current = true;
+    setSearch(''); // si la búsqueda lo ocultaba, vuelve a aparecer
+    if (id === selectedId) {
+      setTimeout(() => showSelected(id));
+      return;
+    }
+    resetReview();
+    scrollTarget.current = id;
+    setSelectedId(id);
   };
 
   // Navegación con teclado estilo Linear: J/K o flechas
@@ -152,7 +165,7 @@ export function ReviewSubmissionsPage() {
       const next = visibleItems[Math.min(Math.max(index + step, 0), visibleItems.length - 1)];
       if (next) {
         resetReview();
-        scrollToSelected.current = true;
+        if (next.id !== selectedId) scrollTarget.current = next.id;
         setSelectedId(next.id);
       }
     };
@@ -161,12 +174,12 @@ export function ReviewSubmissionsPage() {
   }, [visibleItems, selectedId, resetReview]);
 
   const handleReview = (variables) => {
-    // Se calcula antes de que la actualización optimista saque al alumno del filtro
+    // Se calcula antes de la actualización optimista
     const queue = visibleItems.filter((item) => item.status === 'SUBMITTED' && item.id !== variables.submissionId);
     review.mutate(variables, {
       onSuccess: () => {
         if (queue.length === 0) return;
-        scrollToSelected.current = true;
+        scrollTarget.current = queue[0].id;
         setSelectedId((current) => (current === variables.submissionId ? queue[0].id : current));
       },
     });
@@ -192,10 +205,7 @@ export function ReviewSubmissionsPage() {
         <SubmissionList
           className="shrink-0 lg:flex-1 lg:shrink"
           items={visibleItems}
-          summary={data?.summary}
           isLoading={isLoading}
-          filter={filter}
-          onFilterChange={setFilter}
           search={search}
           onSearchChange={setSearch}
           selectedId={selectedId}
@@ -206,10 +216,11 @@ export function ReviewSubmissionsPage() {
               onReview={handleReview}
               pendingDecision={review.isPending ? review.variables?.decision : null}
               reviewError={review.error}
+              onReady={onDetailReady}
             />
           )}
         />
-        <DeliveryRoster items={data?.items ?? []} isLoading={isLoading} />
+        <DeliveryRoster items={data?.items ?? []} isLoading={isLoading} selectedId={selectedId} onSelect={open} />
       </div>
 
       <footer className="hidden items-center gap-4 border-t border-zinc-200 bg-white px-6 py-1.5 text-[11px] text-zinc-500 lg:flex">

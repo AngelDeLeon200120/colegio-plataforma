@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { BellRing, CheckCircle2, Hourglass, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -54,8 +55,15 @@ function PanelSkeleton() {
 }
 
 /** La entrega de un alumno (intentos y revisión), abierta debajo de su nombre. */
-export function SubmissionReviewPanel({ submissionId, onReview, pendingDecision, reviewError }) {
+export function SubmissionReviewPanel({ submissionId, onReview, pendingDecision, reviewError, onReady }) {
   const { data: submission, isLoading, isError, error, refetch } = useSubmissionDetail(submissionId);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
+  // Ya con su contenido (y su alto final), la página puede dejarla a la vista
+  useEffect(() => {
+    if (!isLoading) onReadyRef.current?.(submissionId);
+  }, [isLoading, submissionId]);
 
   return (
     <section className="mt-1 mb-2 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50" aria-label="Detalle de la entrega">

@@ -4,11 +4,21 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 
 const TONES = {
-  red: { header: 'border-red-200 bg-red-50 text-red-700', row: 'border-l-red-500', name: 'text-red-700' },
-  green: { header: 'border-emerald-200 bg-emerald-50 text-emerald-700', row: 'border-l-emerald-500', name: 'text-emerald-700' },
+  red: {
+    header: 'border-red-200 bg-red-50 text-red-700',
+    row: 'border-l-red-500 hover:bg-red-50',
+    active: 'bg-red-50',
+    name: 'text-red-700',
+  },
+  green: {
+    header: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    row: 'border-l-emerald-500 hover:bg-emerald-50',
+    active: 'bg-emerald-50',
+    name: 'text-emerald-700',
+  },
 };
 
-function Group({ title, icon: Icon, tone, items, total, emptyText }) {
+function Group({ title, icon: Icon, tone, items, total, emptyText, selectedId, onSelect }) {
   const colors = TONES[tone];
   return (
     <section>
@@ -23,17 +33,29 @@ function Group({ title, icon: Icon, tone, items, total, emptyText }) {
       ) : (
         <ul className="divide-y divide-zinc-200/70">
           {items.map(({ id, status, student }) => (
-            <li key={id} className={cn('flex items-center gap-3 border-l-4 px-3 py-2.5', colors.row)}>
-              <Avatar firstName={student.firstName} lastName={student.lastName} />
-              <div className="min-w-0">
-                <p className={cn('truncate text-sm font-medium', colors.name)}>
-                  {student.firstName} {student.lastName}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  <span className="font-mono">{student.code}</span>
-                  {status === 'REJECTED' && ' · en corrección'}
-                </p>
-              </div>
+            <li key={id}>
+              <button
+                type="button"
+                onClick={() => onSelect(id)}
+                aria-current={id === selectedId || undefined}
+                title={`Ver a ${student.firstName} ${student.lastName}`}
+                className={cn(
+                  'flex w-full items-center gap-3 border-l-4 px-3 py-2.5 text-left transition-colors',
+                  colors.row,
+                  id === selectedId && colors.active,
+                )}
+              >
+                <Avatar firstName={student.firstName} lastName={student.lastName} />
+                <div className="min-w-0">
+                  <p className={cn('truncate text-sm font-medium', colors.name)}>
+                    {student.firstName} {student.lastName}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    <span className="font-mono">{student.code}</span>
+                    {status === 'REJECTED' && ' · en corrección'}
+                  </p>
+                </div>
+              </button>
             </li>
           ))}
         </ul>
@@ -42,8 +64,8 @@ function Group({ title, icon: Icon, tone, items, total, emptyText }) {
   );
 }
 
-/** Quiénes no han entregado la actividad (rojo) y quiénes sí (verde). */
-export function DeliveryRoster({ items, isLoading }) {
+/** Quiénes no han entregado la actividad (rojo) y quiénes sí (verde). Al hacer clic se abre ese alumno. */
+export function DeliveryRoster({ items, isLoading, selectedId, onSelect }) {
   const missing = items.filter((item) => item.status === 'PENDING');
   const delivered = items.filter((item) => item.status !== 'PENDING');
 
@@ -67,8 +89,19 @@ export function DeliveryRoster({ items, isLoading }) {
             items={missing}
             total={items.length}
             emptyText={items.length ? 'Todos los alumnos entregaron.' : 'Esta actividad aún no tiene alumnos asignados.'}
+            selectedId={selectedId}
+            onSelect={onSelect}
           />
-          <Group title="Sí entregaron" icon={UserCheck} tone="green" items={delivered} total={items.length} emptyText="Todavía nadie ha entregado." />
+          <Group
+            title="Sí entregaron"
+            icon={UserCheck}
+            tone="green"
+            items={delivered}
+            total={items.length}
+            emptyText="Todavía nadie ha entregado."
+            selectedId={selectedId}
+            onSelect={onSelect}
+          />
         </>
       )}
     </aside>

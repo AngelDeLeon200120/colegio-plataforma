@@ -5,14 +5,6 @@ export const STATUS_META = {
   APPROVED: { label: 'Aprobada', tone: 'green' },
 };
 
-export const FILTERS = [
-  { value: 'SUBMITTED', label: 'Por revisar' },
-  { value: 'REJECTED', label: 'En corrección' },
-  { value: 'PENDING', label: 'Sin entregar' },
-  { value: 'APPROVED', label: 'Aprobadas' },
-  { value: 'ALL', label: 'Todas' },
-];
-
 export const FEEDBACK_SNIPPETS = [
   'Falta el procedimiento completo.',
   'La imagen no es legible, vuelve a subirla.',

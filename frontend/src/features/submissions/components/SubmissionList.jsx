@@ -3,44 +3,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 import { formatRelative, formatScore } from '@/lib/format';
-import { FILTERS } from '../constants';
 import { StatusBadge } from './StatusBadge';
-
-const EMPTY_MESSAGES = {
-  SUBMITTED: 'No hay entregas por revisar. ¡Todo al día!',
-  REJECTED: 'Ningún alumno tiene correcciones pendientes.',
-  PENDING: 'Todos los alumnos entregaron.',
-  APPROVED: 'Aún no has aprobado entregas.',
-  ALL: 'No hay alumnos con esta búsqueda.',
-};
-
-/** Pestañas de estado: si no caben en una fila, bajan a la siguiente. */
-function FilterTabs({ value, onChange, summary }) {
-  return (
-    <div role="tablist" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5 px-3 pb-2">
-      {FILTERS.map((filter) => {
-        const count = filter.value === 'ALL' ? summary.total : summary[filter.value];
-        const active = filter.value === value;
-        return (
-          <button
-            key={filter.value}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(filter.value)}
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-              active ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
-            )}
-          >
-            {filter.label}
-            <span className={cn('tabular-nums', active ? 'text-zinc-300' : 'text-zinc-400')}>{count}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 /** Fila de un alumno; abierta, muestra su entrega debajo del nombre. */
 function SubmissionRow({ item, selected, onSelect, children }) {
@@ -92,11 +55,11 @@ function SubmissionRow({ item, selected, onSelect, children }) {
   );
 }
 
-export function SubmissionList({ items, summary, isLoading, filter, onFilterChange, search, onSearchChange, selectedId, onSelect, renderDetail, className }) {
+export function SubmissionList({ items, isLoading, search, onSearchChange, selectedId, onSelect, renderDetail, className }) {
   return (
     <section className={cn('flex min-w-0 flex-col bg-white lg:min-h-0', className)} aria-label="Entregas">
-      <div className="space-y-3 pt-3">
-        <div className="px-3">
+      <div className="p-3">
+        <div>
           <label className="relative block max-w-md">
             <span className="sr-only">Buscar alumno</span>
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-zinc-400" />
@@ -109,7 +72,6 @@ export function SubmissionList({ items, summary, isLoading, filter, onFilterChan
             />
           </label>
         </div>
-        {summary && <FilterTabs value={filter} onChange={onFilterChange} summary={summary} />}
       </div>
 
       <div className="border-t border-zinc-100 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
@@ -128,7 +90,7 @@ export function SubmissionList({ items, summary, isLoading, filter, onFilterChan
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
             <Inbox className="size-8 text-zinc-300" />
-            <p className="text-sm text-zinc-500">{EMPTY_MESSAGES[filter]}</p>
+            <p className="text-sm text-zinc-500">{search.trim() ? 'No hay alumnos con esta búsqueda.' : 'Esta actividad aún no tiene alumnos asignados.'}</p>
           </div>
         ) : (
           <ul className="space-y-0.5">

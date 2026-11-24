@@ -19,8 +19,9 @@ export function useGradebookSheet(courseId, unitId) {
   return useQuery({
     queryKey: gradebookKeys.sheet(courseId, unitId),
     queryFn: () => gradebookApi.getSheet(courseId, unitId),
-    // La hoja tiene sus propios cambios locales: no recargar por detrás
+    // La hoja tiene sus propios cambios locales: no recargar por detrás; solo al abrirla o si cambian sus columnas
     staleTime: Infinity,
+    refetchOnMount: 'always',
   });
 }
 
@@ -57,6 +58,14 @@ export function mergeScores(sheet, cells) {
   return { ...sheet, scores: [...byKey.values()] };
 }
 
+/**
+ * Tras mezclar celdas: si había una recarga en curso, pudo leer los datos de antes del guardado.
+ * Se descarta y se pide de nuevo para no pisar la nota recién puesta.
+ */
+export function discardStaleFetch(queryClient, sheetKey) {
+  if (queryClient.isFetching({ queryKey: sheetKey, exact: true })) queryClient.invalidateQueries({ queryKey: sheetKey, exact: true });
+}
+
 function useInvalidateSheet(courseId) {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: gradebookKeys.all(courseId) });
@@ -77,7 +86,7 @@ export function useDeleteItem(courseId) {
   return useMutation({ mutationFn: ({ itemId, force }) => gradebookApi.deleteItem(itemId, { force }), onSuccess: invalidate });
 }
 
-/** Cambios de otro docente o administrador sobre la misma hoja, en vivo. */
+/** Cambios sobre la misma hoja en vivo: notas de otros editores y columnas nuevas o modificadas (también propias, desde otra pestaña). */
 export function useGradebookLiveUpdates(courseId, sheetKey) {
   const queryClient = useQueryClient();
   const myId = useAuthStore((state) => state.user?.id);
@@ -86,23 +95,27 @@ export function useGradebookLiveUpdates(courseId, sheetKey) {
     if (!courseId || !sheetKey) return undefined;
 
     const socket = getSocket();
-    const subscribe = () => socket.emit('course:subscribe', { courseId: Number(courseId) });
+    const refreshSheets = () => queryClient.invalidateQueries({ queryKey: gradebookKeys.all(courseId) });
+    const subscribe = (onJoined) => socket.emit('course:subscribe', { courseId: Number(courseId) }, onJoined);
+    // Al reconectar, ponerse al día con lo que cambió mientras no había conexión
+    const onConnect = () => subscribe(refreshSheets);
     const unitId = () => queryClient.getQueryData(sheetKey)?.unit.id;
 
     const onCells = ({ data }) => {
       if (data.updatedBy === myId || data.unitId !== unitId()) return;
       queryClient.setQueryData(sheetKey, (sheet) => mergeScores(sheet, data.cells));
+      discardStaleFetch(queryClient, sheetKey);
     };
     const onItems = ({ data }) => {
-      if (data.updatedBy !== myId && data.unitId === unitId()) queryClient.invalidateQueries({ queryKey: sheetKey });
+      if (data.courseId === Number(courseId)) refreshSheets();
     };
 
-    subscribe();
-    socket.on('connect', subscribe);
+    subscribe(() => {});
+    socket.on('connect', onConnect);
     socket.on('gradebook:cells_updated', onCells);
     socket.on('gradebook:items_changed', onItems);
     return () => {
-      socket.off('connect', subscribe);
+      socket.off('connect', onConnect);
       socket.off('gradebook:cells_updated', onCells);
       socket.off('gradebook:items_changed', onItems);
     };

@@ -2,7 +2,8 @@ import { AppError } from '../../core/errors/AppError.js';
 import { withTransaction } from '../../core/db/transaction.js';
 import { matchesSignature } from '../../core/security/fileSignature.js';
 import { formatLocalDateTime } from '../../core/utils/dates.js';
-import { emitToUsers } from '../../realtime/emitter.js';
+import { emitToRoom, emitToUsers } from '../../realtime/emitter.js';
+import { rooms } from '../../realtime/rooms.js';
 import { assertCourseStaff } from '../academic/academic.access.js';
 import { academicRepository } from '../academic/academic.repository.js';
 import { filesService } from '../files/files.service.js';
@@ -127,6 +128,10 @@ export const activitiesService = {
           weight: body.gradeWeight,
           createdBy: user.id,
         });
+        // El cuadro de notas abierto muestra la columna nueva sin recargar
+        afterCommit(() =>
+          emitToRoom(rooms.courseStaff(course.id), 'gradebook:items_changed', { courseId: course.id, unitId: unit.id, updatedBy: user.id }),
+        );
       }
 
       if (body.publish) {

@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { api } from '@/lib/apiClient';
 import { formatDateTime, formatScore } from '@/lib/format';
 import { ERROR_LABELS, parseInput } from '../gridModel';
-import { mergeScores } from '../hooks';
+import { discardStaleFetch, mergeScores } from '../hooks';
 
 const historyKey = (courseId, itemId, studentId) => ['gradebook-history', String(courseId), itemId, studentId];
 
@@ -31,6 +31,7 @@ export function ImproveDialog({ courseId, unitId, student, item, currentScore, s
     mutationFn: (body) => api(`/courses/${courseId}/gradebook/improvements`, { method: 'POST', body }),
     onSuccess: (result) => {
       queryClient.setQueryData(sheetKey, (sheet) => mergeScores(sheet, [result.cell]));
+      discardStaleFetch(queryClient, sheetKey);
       queryClient.setQueryData(historyKey(courseId, item.id, student.id), { history: result.history });
       onSaved?.(result);
     },

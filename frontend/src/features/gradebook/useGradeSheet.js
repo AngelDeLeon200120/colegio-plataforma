@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { useQueryClient } from '@tanstack/react-query';
 import { gradebookApi } from './api';
 import { cellKey, cellText, parseInput } from './gridModel';
-import { mergeScores } from './hooks';
+import { discardStaleFetch, mergeScores } from './hooks';
 
 const AUTOSAVE_DELAY_MS = 700;
 const MAX_UNDO = 100;
@@ -185,6 +185,7 @@ export function useGradeSheet({ courseId, sheet, sheetKey }) {
     try {
       const result = await gradebookApi.saveCells(courseId, { unitId: unit.id, cells });
       queryClient.setQueryData(sheetKey, (data) => mergeScores(data, result.cells));
+      discardStaleFetch(queryClient, sheetKey);
       dispatch({ type: 'SAVE_SUCCEEDED', keys });
       setSaveStatus({ state: 'saved', at: new Date() });
     } catch (error) {

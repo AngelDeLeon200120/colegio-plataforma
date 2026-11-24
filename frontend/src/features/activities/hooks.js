@@ -10,7 +10,7 @@ export function useTeacherActivities(filters = {}) {
   return useQuery({ queryKey: activityKeys.list(filters), queryFn: () => activitiesApi.list(filters) });
 }
 
-/** Cualquier cambio de una actividad afecta listas, Inicio y la cola de revisión. */
+/** Cualquier cambio de una actividad afecta listas, Inicio, la cola de revisión y el cuadro de notas (si suma una columna). */
 function useActivityMutation(mutationFn) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -18,6 +18,7 @@ function useActivityMutation(mutationFn) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: activityKeys.all });
       queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['gradebook'] });
     },
   });
 }

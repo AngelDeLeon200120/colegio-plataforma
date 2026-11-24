@@ -234,7 +234,8 @@ export function GradebookPage() {
         </div>
       </header>
 
-      {isError ? (
+      {/* Si falla una recarga por detrás, la hoja ya cargada (y lo que se escribe en ella) se queda */}
+      {isError && !sheet ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <AlertTriangle className="size-8 text-amber-500" />
           <p className="text-sm text-zinc-600">{error.message}</p>

@@ -39,7 +39,6 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
   const [maxScore, setMaxScore] = useState(activity?.maxScore != null ? String(activity.maxScore) : '');
   const [allowLate, setAllowLate] = useState(activity?.allowLate ?? true);
   const [inGradebook, setInGradebook] = useState(false);
-  const [gradeWeight, setGradeWeight] = useState('');
   const [files, setFiles] = useState([]);
   const [fileProblem, setFileProblem] = useState(null);
   const [showProblems, setShowProblems] = useState(false);
@@ -51,16 +50,12 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
   const mutation = editing ? update : create;
 
   const maxScoreValue = maxScore.trim() === '' ? null : Number(maxScore.replace(',', '.'));
-  const weightValue = Number(gradeWeight.replace(',', '.'));
-  const gradebookValid = !inGradebook || (maxScoreValue > 0 && gradeWeight.trim() !== '' && weightValue >= 0 && weightValue <= 100);
+  const gradebookValid = !inGradebook || maxScoreValue > 0;
   const problems = [
     !courseId && { field: ids.course, message: 'Elige un curso.' },
     title.trim().length < 3 && { field: ids.title, message: 'El título debe tener al menos 3 caracteres.' },
     !(maxScoreValue === null || maxScoreValue > 0) && { field: ids.max, message: 'Los puntos deben ser un número mayor que 0.' },
-    !gradebookValid && {
-      field: maxScoreValue > 0 ? `${ids.max}-weight` : ids.max,
-      message: maxScoreValue > 0 ? 'El peso en la unidad debe estar entre 0 y 100 %.' : 'Para sumar al cuadro de notas, indica los puntos.',
-    },
+    !gradebookValid && { field: ids.max, message: 'Para sumar al cuadro de notas, indica los puntos.' },
   ].filter(Boolean);
   const valid = problems.length === 0;
   const dueIso = dueAt ? new Date(dueAt).toISOString() : null;
@@ -108,7 +103,8 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
           maxScore: maxScoreValue ?? undefined,
           allowLate,
           publish,
-          gradeWeight: inGradebook ? weightValue : undefined,
+          // La columna vale sus mismos puntos dentro de la unidad (el servidor admite hasta 100)
+          gradeWeight: inGradebook ? Math.min(maxScoreValue, 100) : undefined,
           files,
         });
       }
@@ -244,23 +240,7 @@ export function ActivityFormDialog({ activity, courses, defaultCourseId, onClose
                 <span className="block text-zinc-500">Crea su columna en la unidad; al aprobar una entrega con nota, se copia sola.</span>
               </span>
             </label>
-            {inGradebook && (
-              <div className="mt-3 flex items-center gap-2 pl-6.5 text-sm">
-                <label htmlFor={`${ids.max}-weight`} className="text-zinc-700">
-                  Peso en la unidad
-                </label>
-                <input
-                  id={`${ids.max}-weight`}
-                  value={gradeWeight}
-                  onChange={(e) => setGradeWeight(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="ej. 10"
-                  className={`${inputClass} w-20`}
-                />
-                <span className="text-zinc-500">%</span>
-                {!(maxScoreValue > 0) && <span className="text-xs text-amber-700">Indica los puntos de la actividad.</span>}
-              </div>
-            )}
+            {inGradebook && !(maxScoreValue > 0) && <p className="mt-2 pl-6.5 text-xs text-amber-700">Indica los puntos de la actividad.</p>}
           </div>
         )}
 

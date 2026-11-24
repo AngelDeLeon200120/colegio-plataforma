@@ -42,9 +42,8 @@ const staffChatItem = { to: STAFF_CHAT_PATH, label: 'Chat docentes', icon: Messa
 const staffNavigation = [
   homeItem,
   { to: '/dashboard', label: 'Resumen', icon: LayoutDashboard },
-  // La página de un curso vive en /courses/:id (su hoja de notas, en /courses/:id/gradebook)
-  { to: '/courses', label: 'Mis cursos', icon: BookOpen, end: true, alsoActive: (path) => /^\/courses\/\d+\/?$/.test(path) },
-  { to: '/activities', label: 'Actividades', icon: ClipboardCheck },
+  // La página de un curso vive en /courses/:id, con sus actividades (y su revisión, en /activities/:id/review)
+  { to: '/courses', label: 'Mis cursos', icon: BookOpen, end: true, alsoActive: (path) => /^\/courses\/\d+\/?$/.test(path) || path.startsWith('/activities/') },
   // La hoja de un curso vive en /courses/:id/gradebook
   { to: '/gradebook', label: 'Cuadro de notas', icon: Table2, alsoActive: (path) => path.endsWith('/gradebook') },
   meetingsItem,

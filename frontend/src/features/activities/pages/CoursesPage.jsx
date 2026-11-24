@@ -11,10 +11,13 @@ export function CoursesPage() {
   const { data: courses, isLoading, isError, error } = useMyCourses();
   const { data: activities = [] } = useTeacherActivities();
 
-  const toReviewByCourse = activities.reduce((map, activity) => {
-    map[activity.course.id] = (map[activity.course.id] ?? 0) + activity.progress.submitted;
-    return map;
-  }, {});
+  const sumByCourse = (key) =>
+    activities.reduce((map, activity) => {
+      map[activity.course.id] = (map[activity.course.id] ?? 0) + activity.progress[key];
+      return map;
+    }, {});
+  const toReviewByCourse = sumByCourse('submitted');
+  const inCorrectionByCourse = sumByCourse('rejected');
 
   return (
     <div className="w-full overflow-y-auto px-4 py-6 sm:px-6">
@@ -31,9 +34,18 @@ export function CoursesPage() {
             course={course}
             to={`/courses/${course.id}`}
             badge={
-              toReviewByCourse[course.id] > 0 && (
-                <span className="w-fit rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
-                  {toReviewByCourse[course.id]} por revisar
+              (toReviewByCourse[course.id] > 0 || inCorrectionByCourse[course.id] > 0) && (
+                <span className="flex flex-wrap gap-1">
+                  {toReviewByCourse[course.id] > 0 && (
+                    <span className="w-fit rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                      {toReviewByCourse[course.id]} por revisar
+                    </span>
+                  )}
+                  {inCorrectionByCourse[course.id] > 0 && (
+                    <span className="w-fit rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                      {inCorrectionByCourse[course.id]} en corrección
+                    </span>
+                  )}
                 </span>
               )
             }

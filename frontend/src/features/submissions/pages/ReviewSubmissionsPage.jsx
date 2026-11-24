@@ -34,11 +34,11 @@ function PageHeader({ activity, summary }) {
   return (
     <header className="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6">
       <nav className="flex items-center gap-1 text-xs text-zinc-500" aria-label="Ruta">
-        <Link to="/activities" className="hover:text-zinc-900">
-          Actividades
+        <Link to="/courses" className="hover:text-zinc-900">
+          Mis cursos
         </Link>
         <ChevronRight className="size-3" />
-        <Link to={`/activities?course=${activity.courseId}`} className="hover:text-zinc-900">
+        <Link to={`/courses/${activity.courseId}`} className="hover:text-zinc-900">
           {activity.courseName}
         </Link>
       </nav>

@@ -1,6 +1,5 @@
-import { createBrowserRouter, Navigate } from 'react-router';
+import { createBrowserRouter, Navigate, useSearchParams } from 'react-router';
 import { AppShell } from '@/components/layout/AppShell';
-import { ActivitiesPage } from '@/features/activities/pages/ActivitiesPage';
 import { CoursePage } from '@/features/activities/pages/CoursePage';
 import { CoursesPage } from '@/features/activities/pages/CoursesPage';
 import { DashboardPage } from '@/features/activities/pages/DashboardPage';
@@ -39,6 +38,15 @@ function HomeRedirect() {
   return <Navigate to={HOME_BY_ROLE[role] ?? '/login'} replace />;
 }
 
+/** Las actividades viven en la página de cada curso: los enlaces antiguos siguen funcionando. */
+function ActivitiesRedirect() {
+  const [searchParams] = useSearchParams();
+  const course = searchParams.get('course');
+  const status = searchParams.get('status');
+  if (!/^\d+$/.test(course ?? '')) return <Navigate to="/courses" replace />;
+  return <Navigate to={`/courses/${course}${status ? `?status=${encodeURIComponent(status)}` : ''}`} replace />;
+}
+
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
@@ -63,7 +71,7 @@ export const router = createBrowserRouter([
               { path: 'courses/:courseId', element: <CoursePage /> },
               { path: 'conduct', element: <ConductPage /> },
               { path: 'staff-chat', element: <StaffChatPage /> },
-              { path: 'activities', element: <ActivitiesPage /> },
+              { path: 'activities', element: <ActivitiesRedirect /> },
               { path: 'activities/:activityId/review', element: <ReviewSubmissionsPage /> },
               { path: 'gradebook', element: <GradebookIndexPage /> },
               { path: 'courses/:courseId/gradebook', element: <GradebookPage /> },

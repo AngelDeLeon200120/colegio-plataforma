@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { AlertTriangle, ChevronRight, ClipboardList, Plus, Table2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -13,7 +13,7 @@ import { ActivityRow } from '../components/ActivityRow';
 import { useTeacherActivities } from '../hooks';
 
 const TABS = [
-  { id: 'work', label: 'Trabajo de clase', icon: ClipboardList },
+  { id: 'work', label: 'Actividades', icon: ClipboardList },
   { id: 'meetings', label: 'Reuniones', icon: Video },
 ];
 
@@ -23,11 +23,22 @@ const STATUS_GROUPS = [
   { status: 'CLOSED', title: 'Cerradas' },
 ];
 
+const STATUS_FILTERS = [
+  { value: '', label: 'Todas' },
+  { value: 'DRAFT', label: 'Borradores' },
+  { value: 'PUBLISHED', label: 'Publicadas' },
+  { value: 'CLOSED', label: 'Cerradas' },
+];
+
 /** Un curso estilo Classroom: sus actividades y sus reuniones virtuales en un solo lugar. */
 export function CoursePage() {
   const { courseId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'meetings' ? 'meetings' : 'work';
+  // Filtro de estado en la URL: se conserva al volver y se puede enlazar
+  const requestedStatus = searchParams.get('status') ?? '';
+  const status = STATUS_FILTERS.some((filter) => filter.value === requestedStatus) ? requestedStatus : '';
+  const navigate = useNavigate();
   const [form, setForm] = useState(null);
   const [meetingDialog, setMeetingDialog] = useState(null);
 
@@ -41,6 +52,7 @@ export function CoursePage() {
   const [section, subject] = course?.name.includes(' · ') ? course.name.split(' · ') : [null, course?.name];
   const upcomingMeetings = (meetings.data?.meetings ?? []).filter((meeting) => ['live', 'upcoming'].includes(meetingPhase(meeting)));
   const list = activities.data ?? [];
+  const countOf = (value) => (value ? list.filter((activity) => activity.status === value).length : list.length);
 
   if (!loadingCourses && !course) {
     return (
@@ -112,15 +124,56 @@ export function CoursePage() {
                 <Plus className="size-4" /> Nueva actividad
               </Button>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div role="tablist" aria-label="Estado" className="flex flex-wrap gap-1.5">
+                {STATUS_FILTERS.map((filter) => (
+                  <button
+                    key={filter.label}
+                    type="button"
+                    role="tab"
+                    aria-selected={status === filter.value}
+                    onClick={() => setSearchParams(filter.value ? { status: filter.value } : {})}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      status === filter.value ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100',
+                    )}
+                  >
+                    {filter.label}
+                    {activities.data && <span className="text-[11px] tabular-nums opacity-70">{countOf(filter.value)}</span>}
+                  </button>
+                ))}
+              </div>
+              {course && courses.length > 1 && (
+                <select
+                  value={courseId}
+                  onChange={(event) => navigate(`/courses/${event.target.value}${status ? `?status=${status}` : ''}`)}
+                  aria-label="Cambiar de curso"
+                  className="h-8 max-w-full rounded-md border border-zinc-200 bg-white px-2 text-sm shadow-xs focus:ring-2 focus:ring-zinc-200 focus:outline-none"
+                >
+                  {courses.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
             {activities.isError && <p className="text-sm text-red-600">{activities.error.message}</p>}
             {activities.isLoading && <Skeleton className="h-40 w-full rounded-lg" />}
-            {activities.data && list.length === 0 && (
+            {activities.data && countOf(status) === 0 && (
               <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-zinc-300 py-12 text-center">
                 <ClipboardList className="size-8 text-zinc-300" />
-                <p className="text-sm text-zinc-500">Este curso todavía no tiene actividades.</p>
+                <p className="text-sm text-zinc-500">
+                  {list.length ? 'No hay actividades con este filtro.' : 'Este curso todavía no tiene actividades.'}
+                </p>
+                {list.length === 0 && (
+                  <Button size="sm" onClick={() => setForm({ activity: null })} disabled={!course}>
+                    <Plus className="size-3.5" /> Crear la primera
+                  </Button>
+                )}
               </div>
             )}
-            {STATUS_GROUPS.map((group) => {
+            {STATUS_GROUPS.filter((group) => !status || group.status === status).map((group) => {
               const items = list.filter((activity) => activity.status === group.status);
               if (!items.length) return null;
               return (

@@ -58,6 +58,11 @@ export function DashboardPage() {
   const toReview = published.filter((activity) => activity.progress.submitted > 0).sort((a, b) => b.progress.submitted - a.progress.submitted);
   const totalToReview = toReview.reduce((sum, activity) => sum + activity.progress.submitted, 0);
   const inCorrection = published.reduce((sum, activity) => sum + activity.progress.rejected, 0);
+  // Si todo está en un solo curso, se va directo a él; si no, a Mis cursos (que muestra cuántas hay en cada uno)
+  const linkTo = (key) => {
+    const ids = [...new Set(published.filter((activity) => activity.progress[key] > 0).map((activity) => activity.course.id))];
+    return ids.length === 1 ? `/courses/${ids[0]}?status=PUBLISHED` : '/courses';
+  };
   const now = Date.now();
   const upcoming = published
     .filter((activity) => activity.dueAt && new Date(activity.dueAt).getTime() >= now && new Date(activity.dueAt).getTime() - now <= WEEK_MS)
@@ -86,8 +91,8 @@ export function DashboardPage() {
       ) : (
         <>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <StatCard icon={Inbox} label="Entregas por revisar" value={totalToReview} to="/activities?status=PUBLISHED" highlight={totalToReview > 0} />
-            <StatCard icon={RotateCcw} label="Esperando corrección" value={inCorrection} to="/activities?status=PUBLISHED" />
+            <StatCard icon={Inbox} label="Entregas por revisar" value={totalToReview} to={linkTo('submitted')} highlight={totalToReview > 0} />
+            <StatCard icon={RotateCcw} label="Esperando corrección" value={inCorrection} to={linkTo('rejected')} />
             <StatCard icon={BookOpen} label="Cursos" value={courses.length} to="/courses" />
           </div>
 

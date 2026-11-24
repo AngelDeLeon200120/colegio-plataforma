@@ -114,19 +114,34 @@ function ActionsMenu({ activity, onEdit }) {
   );
 }
 
+/** Todo el cuadro de una actividad publicada o cerrada abre sus entregas (menos el menú de acciones). */
 export function ActivityRow({ activity, onEdit }) {
   const scheduled = isScheduled(activity);
   const status = STATUS[scheduled ? 'SCHEDULED' : activity.status];
   const toReview = activity.progress.submitted;
+  const reviewPath = activity.status === 'DRAFT' ? null : `/activities/${activity.id}/review`;
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <li
+      className={cn(
+        'relative flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 first:rounded-t-lg last:rounded-b-lg',
+        reviewPath && 'transition-colors hover:bg-zinc-50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-brand-600',
+      )}
+    >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: activity.course.color ?? "#1a73e8" }} aria-hidden>
         <ClipboardList className="size-5" />
       </span>
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium text-zinc-900">{activity.title}</p>
+          <p className="truncate text-sm font-medium text-zinc-900">
+            {reviewPath ? (
+              <Link to={reviewPath} className="after:absolute after:inset-0 focus:outline-none">
+                {activity.title}
+              </Link>
+            ) : (
+              activity.title
+            )}
+          </p>
           <Badge tone={status.tone}>{status.label}</Badge>
         </div>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-zinc-500">
@@ -150,19 +165,18 @@ export function ActivityRow({ activity, onEdit }) {
         </p>
       </div>
 
-      {activity.status !== 'DRAFT' && <ProgressBar progress={activity.progress} />}
+      {reviewPath && (
+        // Por encima del enlace del cuadro para conservar el detalle al pasar el cursor
+        <Link to={reviewPath} tabIndex={-1} className="relative">
+          <ProgressBar progress={activity.progress} />
+        </Link>
+      )}
 
-      <div className="ml-auto flex items-center gap-1">
-        {activity.status !== 'DRAFT' && (
-          <Link
-            to={`/activities/${activity.id}/review`}
-            className={cn(
-              'inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors',
-              toReview ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border border-zinc-300 bg-white text-brand-700 hover:bg-brand-50',
-            )}
-          >
-            {toReview ? `Revisar (${toReview})` : 'Ver entregas'}
-          </Link>
+      <div className="ml-auto flex items-center gap-2">
+        {toReview > 0 && (
+          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-blue-700 tabular-nums">
+            {toReview} por revisar
+          </span>
         )}
         <ActionsMenu activity={activity} onEdit={onEdit} />
       </div>

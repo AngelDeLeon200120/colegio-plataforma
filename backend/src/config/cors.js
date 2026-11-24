@@ -4,10 +4,13 @@ import { AppError } from '../core/errors/AppError.js';
 // Solo en desarrollo: enlace temporal de presentación (Cloudflare Tunnel), cuyo subdominio cambia cada vez
 const DEV_TUNNEL = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/;
 
+// Solo en desarrollo: cualquier IP de la red local (teléfonos y otras computadoras), aunque el router cambie la IP
+const DEV_LAN = /^http:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):\d{2,5}$/;
+
 /** Sin Origin = misma máquina, curl o health checks. */
 export function isAllowedOrigin(origin) {
   if (!origin || env.corsOrigins.includes(origin)) return true;
-  return !env.isProd && DEV_TUNNEL.test(origin);
+  return !env.isProd && (DEV_TUNNEL.test(origin) || DEV_LAN.test(origin));
 }
 
 export const corsOptions = {

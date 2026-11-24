@@ -241,6 +241,24 @@ class ActivitiesRepository extends BaseRepository {
     return rows.map((row) => ({ guardianId: row.guardian_id, studentId: row.student_id, studentName: row.first_name }));
   }
 
+  /** Columnas del cuadro ligadas a la actividad (bloqueadas) con cuántas notas tienen. */
+  async lockLinkedGradeItems(activityId) {
+    const items = await this.query('SELECT id FROM grade_items WHERE school_id = ? AND activity_id = ? FOR UPDATE', [this.schoolId, activityId]);
+    if (!items.length) return { count: 0, filled: 0 };
+    const row = await this.one(
+      `SELECT COUNT(*) AS filled
+         FROM grade_scores gs
+         JOIN grade_items gi ON gi.school_id = gs.school_id AND gi.id = gs.grade_item_id
+        WHERE gi.school_id = ? AND gi.activity_id = ? AND (gs.score IS NOT NULL OR gs.is_excused = 1)`,
+      [this.schoolId, activityId],
+    );
+    return { count: items.length, filled: Number(row.filled) };
+  }
+
+  async deleteLinkedGradeItems(activityId) {
+    await this.query('DELETE FROM grade_items WHERE school_id = ? AND activity_id = ?', [this.schoolId, activityId]);
+  }
+
   async deleteDraft(activityId) {
     const result = await this.query(`DELETE FROM activities WHERE school_id = ? AND id = ? AND status = 'DRAFT'`, [this.schoolId, activityId]);
     return result.affectedRows === 1;

@@ -25,6 +25,42 @@ function assertUnitOpen(unit) {
   }
 }
 
+/** Las hojas del cuadro de notas abiertas recargan sus columnas. */
+function emitColumnsChanged(courseId, unitId, user) {
+  emitToRoom(rooms.courseStaff(courseId), 'gradebook:items_changed', { courseId, unitId, updatedBy: user.id });
+}
+
+/**
+ * Borra el borrador y su columna del cuadro, si la tiene y está vacía. Con notas puestas a mano
+ * no se borra nada: se quitan antes en el cuadro.
+ */
+async function deleteDraftWithColumn(user, activity) {
+  return withTransaction(async (connection, afterCommit) => {
+    const repo = activitiesRepository.withConnection(connection);
+    const linked = await repo.lockLinkedGradeItems(activity.id);
+    if (linked.filled > 0) {
+      throw new AppError(
+        409,
+        'HAS_SCORES',
+        `Su columna del cuadro de notas ya tiene ${linked.filled} nota(s). Quítalas en el cuadro antes de eliminar el borrador.`,
+        { filled: linked.filled },
+      );
+    }
+    if (linked.count > 0) {
+      if (activity.unit.status === 'CLOSED') {
+        throw AppError.unprocessable('UNIT_CLOSED', `${activity.unit.name} está cerrada: no se puede quitar su columna del cuadro de notas`);
+      }
+      await repo.deleteLinkedGradeItems(activity.id);
+      afterCommit(() => emitColumnsChanged(activity.course.id, activity.unit.id, user));
+    }
+    // Si ya no es borrador se deshace todo, también la columna
+    if (!(await repo.deleteDraft(activity.id))) throw notRemovable();
+  });
+}
+
+const notRemovable = () =>
+  AppError.unprocessable('INVALID_TRANSITION', 'Solo se eliminan borradores y actividades cerradas; una publicada primero se cierra');
+
 const publicActivity = ({ teacherId, ...activity }) => activity;
 
 /**
@@ -129,9 +165,7 @@ export const activitiesService = {
           createdBy: user.id,
         });
         // El cuadro de notas abierto muestra la columna nueva sin recargar
-        afterCommit(() =>
-          emitToRoom(rooms.courseStaff(course.id), 'gradebook:items_changed', { courseId: course.id, unitId: unit.id, updatedBy: user.id }),
-        );
+        afterCommit(() => emitColumnsChanged(course.id, unit.id, user));
       }
 
       if (body.publish) {
@@ -186,14 +220,12 @@ export const activitiesService = {
   },
 
   /**
-   * Eliminar: un borrador se borra del todo; una cerrada se oculta (borrado lógico) para no perder
+   * Eliminar: un borrador se borra del todo (con su columna vacía del cuadro); una cerrada se oculta (borrado lógico) para no perder
    * entregas ni notas ya puestas. Una publicada primero se cierra.
    */
   async remove(user, activityId) {
     const activity = await loadActivity(user, activityId);
-    const removed = activity.status === 'CLOSED' ? await activitiesRepository.softDeleteClosed(activity.id) : await activitiesRepository.deleteDraft(activity.id);
-    if (!removed) {
-      throw AppError.unprocessable('INVALID_TRANSITION', 'Solo se eliminan borradores y actividades cerradas; una publicada primero se cierra');
-    }
+    if (activity.status === 'DRAFT') return deleteDraftWithColumn(user, activity);
+    if (!(await activitiesRepository.softDeleteClosed(activity.id))) throw notRemovable();
   },
 };

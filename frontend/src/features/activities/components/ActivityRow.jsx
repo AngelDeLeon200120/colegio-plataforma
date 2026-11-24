@@ -120,8 +120,16 @@ export function ActivityRow({ activity, onEdit }) {
   const toReview = activity.progress.submitted;
   const reviewPath = activity.status === 'DRAFT' ? null : `/activities/${activity.id}/review`;
 
-  const toReviewBadge = (
-    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-blue-700 tabular-nums">{toReview} por revisar</span>
+  const missing = activity.progress.pending;
+  const badges = (toReview > 0 || missing > 0) && (
+    <>
+      {toReview > 0 && (
+        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-blue-700 tabular-nums">{toReview} por revisar</span>
+      )}
+      {missing > 0 && (
+        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-zinc-600 tabular-nums">{missing} sin entregar</span>
+      )}
+    </>
   );
 
   return (
@@ -162,7 +170,7 @@ export function ActivityRow({ activity, onEdit }) {
               </span>
             )}
             {/* En el teléfono va aquí; en pantallas anchas, a la derecha */}
-            {toReview > 0 && <span className="sm:hidden">{toReviewBadge}</span>}
+            {badges && <span className="flex flex-wrap gap-1 sm:hidden">{badges}</span>}
           </div>
         )}
         <p className="mt-1 text-xs text-zinc-500">
@@ -175,7 +183,7 @@ export function ActivityRow({ activity, onEdit }) {
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        {toReview > 0 && <span className="max-sm:hidden">{toReviewBadge}</span>}
+        {badges && <span className="flex gap-1 max-sm:hidden">{badges}</span>}
         <ActionsMenu activity={activity} onEdit={onEdit} />
       </div>
     </li>

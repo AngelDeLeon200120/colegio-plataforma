@@ -1,4 +1,4 @@
-import { Clock, Inbox, Search } from 'lucide-react';
+import { ChevronDown, Clock, Inbox, Search } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
@@ -42,14 +42,15 @@ function FilterTabs({ value, onChange, summary }) {
   );
 }
 
-function SubmissionRow({ item, selected, onSelect }) {
+/** Fila de un alumno; abierta, muestra su entrega debajo del nombre. */
+function SubmissionRow({ item, selected, onSelect, children }) {
   const { student } = item;
   return (
-    <li>
+    <li id={`entrega-${item.id}`} className="scroll-mt-2">
       <button
         type="button"
         onClick={() => onSelect(item.id)}
-        aria-current={selected || undefined}
+        aria-expanded={selected}
         className={cn(
           'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
           selected ? 'bg-zinc-100 ring-1 ring-zinc-200' : 'hover:bg-zinc-50',
@@ -84,17 +85,19 @@ function SubmissionRow({ item, selected, onSelect }) {
             )}
           </div>
         </div>
+        <ChevronDown className={cn('size-4 shrink-0 text-zinc-400 transition-transform', selected && 'rotate-180')} aria-hidden />
       </button>
+      {selected && children}
     </li>
   );
 }
 
-export function SubmissionList({ items, summary, isLoading, filter, onFilterChange, search, onSearchChange, selectedId, onSelect, className }) {
+export function SubmissionList({ items, summary, isLoading, filter, onFilterChange, search, onSearchChange, selectedId, onSelect, renderDetail, className }) {
   return (
-    <section className={cn('flex min-h-0 min-w-0 flex-col border-r border-zinc-200 bg-white', className)} aria-label="Entregas">
+    <section className={cn('flex min-w-0 flex-col bg-white lg:min-h-0', className)} aria-label="Entregas">
       <div className="space-y-3 pt-3">
         <div className="px-3">
-          <label className="relative block">
+          <label className="relative block max-w-md">
             <span className="sr-only">Buscar alumno</span>
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-zinc-400" />
             <input
@@ -109,7 +112,7 @@ export function SubmissionList({ items, summary, isLoading, filter, onFilterChan
         {summary && <FilterTabs value={filter} onChange={onFilterChange} summary={summary} />}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-100 p-2">
+      <div className="border-t border-zinc-100 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {isLoading ? (
           <div className="space-y-2 p-1">
             {Array.from({ length: 6 }, (_, index) => (
@@ -130,7 +133,9 @@ export function SubmissionList({ items, summary, isLoading, filter, onFilterChan
         ) : (
           <ul className="space-y-0.5">
             {items.map((item) => (
-              <SubmissionRow key={item.id} item={item} selected={item.id === selectedId} onSelect={onSelect} />
+              <SubmissionRow key={item.id} item={item} selected={item.id === selectedId} onSelect={onSelect}>
+                {renderDetail?.(item)}
+              </SubmissionRow>
             ))}
           </ul>
         )}

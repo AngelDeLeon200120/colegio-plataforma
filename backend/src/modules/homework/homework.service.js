@@ -5,7 +5,6 @@ import { emitToRoom, emitToUsers } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
 import { filesService } from '../files/files.service.js';
 import { unpaidUnitsOf } from '../finance/finance.holds.js';
-import { notificationsService } from '../notifications/notifications.service.js';
 import { assertTransition } from '../submissions/submission.stateMachine.js';
 import { submissionsRepository } from '../submissions/submissions.repository.js';
 import { homeworkRepository } from './homework.repository.js';
@@ -127,22 +126,10 @@ export const homeworkService = {
       await repo.linkAttemptFiles(attemptId, fileIds);
       await repo.markSubmitted(submission.id, { attemptNumber, isLate });
 
-      const studentName = `${student.firstName} ${student.lastName}`;
-      const notifications = await notificationsService.createForUsers(connection, [activity.teacher.id], {
-        type: 'SUBMISSION_RECEIVED',
-        priority: 'NORMAL',
-        title: `Nueva entrega: ${activity.title}`.slice(0, 200),
-        body: `${studentName} entregó${attemptNumber > 1 ? ` la corrección (intento ${attemptNumber})` : ''}${isLate ? ' fuera de plazo' : ''}.`,
-        entityType: 'submission',
-        entityId: submission.id,
-        studentId: student.id,
-        actionUrl: `/activities/${activity.id}/review`,
-        data: { activityId: activity.id, submissionId: submission.id },
-      });
+      // Sin notificación al docente (se saturaba con cada entrega): lo ve al momento en la actividad
       const guardianIds = await repo.findGuardianUserIds(student.id);
 
       afterCommit(() => {
-        notificationsService.publish(notifications);
         const event = { submissionId: submission.id, activityId: activity.id, studentId: student.id, status: 'SUBMITTED', version: submission.version + 1 };
         emitToRoom(rooms.courseStaff(activity.courseId), 'submission:updated', event);
         emitToUsers([user.id, ...guardianIds], 'submission:updated', event);

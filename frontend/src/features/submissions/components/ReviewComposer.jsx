@@ -106,7 +106,7 @@ export function ReviewComposer({ maxScore, pendingDecision, error, onSubmit }) {
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <Button variant="warning" onClick={reject} loading={pendingDecision === 'REJECTED'} disabled={busy && pendingDecision !== 'REJECTED'}>
               {pendingDecision !== 'REJECTED' && <RotateCcw className="size-3.5" />}
               Solicitar corrección

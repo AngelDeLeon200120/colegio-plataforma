@@ -1,13 +1,11 @@
-import { ArrowLeft, BellRing, CheckCircle2, Hourglass, MousePointerClick, RefreshCw } from 'lucide-react';
-import { Avatar } from '@/components/ui/Avatar';
+import { BellRing, CheckCircle2, Hourglass, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
-import { formatDateTime, formatScore } from '@/lib/format';
+import { formatScore } from '@/lib/format';
 import { useSubmissionDetail } from '../hooks';
 import { AttemptTimeline } from './AttemptTimeline';
 import { ReviewComposer } from './ReviewComposer';
-import { StatusBadge } from './StatusBadge';
 
 function StatusFooter({ submission }) {
   const { status, activity } = submission;
@@ -49,37 +47,22 @@ function StatusFooter({ submission }) {
 function PanelSkeleton() {
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Skeleton className="size-10 rounded-full" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-3 w-24" />
-        </div>
-      </div>
       <Skeleton className="h-24 w-full" />
       <Skeleton className="h-16 w-3/4" />
     </div>
   );
 }
 
-export function SubmissionReviewPanel({ submissionId, onBack, onReview, pendingDecision, reviewError, className }) {
-  const { data: submission, isLoading, isError, error, refetch, isFetching } = useSubmissionDetail(submissionId);
-
-  if (!submissionId) {
-    return (
-      <section className={cn('flex flex-1 flex-col items-center justify-center gap-2 bg-zinc-50 text-center', className)}>
-        <MousePointerClick className="size-8 text-zinc-300" />
-        <p className="text-sm text-zinc-500">Selecciona una entrega para revisarla.</p>
-      </section>
-    );
-  }
+/** La entrega de un alumno (intentos y revisión), abierta debajo de su nombre. */
+export function SubmissionReviewPanel({ submissionId, onReview, pendingDecision, reviewError }) {
+  const { data: submission, isLoading, isError, error, refetch } = useSubmissionDetail(submissionId);
 
   return (
-    <section className={cn('flex min-h-0 min-w-0 flex-1 flex-col bg-zinc-50', className)} aria-label="Detalle de la entrega">
+    <section className="mt-1 mb-2 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50" aria-label="Detalle de la entrega">
       {isLoading ? (
         <PanelSkeleton />
       ) : isError ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-sm text-zinc-600">{error.message}</p>
           <Button onClick={() => refetch()}>
             <RefreshCw className="size-3.5" /> Reintentar
@@ -87,25 +70,7 @@ export function SubmissionReviewPanel({ submissionId, onBack, onReview, pendingD
         </div>
       ) : (
         <>
-          <header className="flex items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3 sm:px-6">
-            <Button variant="ghost" size="icon" className="-ml-2 lg:hidden" onClick={onBack} aria-label="Volver a la lista">
-              <ArrowLeft className="size-4" />
-            </Button>
-            <Avatar firstName={submission.student.firstName} lastName={submission.student.lastName} size="lg" />
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-semibold text-zinc-900">
-                {submission.student.firstName} {submission.student.lastName}
-              </h2>
-              <p className="text-xs text-zinc-500">
-                <span className="font-mono">{submission.student.code}</span>
-                {submission.lastSubmittedAt && <> · Última entrega {formatDateTime(submission.lastSubmittedAt)}</>}
-              </p>
-            </div>
-            {isFetching && <RefreshCw className="size-3.5 animate-spin text-zinc-400" aria-label="Actualizando" />}
-            <StatusBadge status={submission.status} />
-          </header>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+          <div className="px-4 py-5 sm:px-6">
             <AttemptTimeline attempts={submission.attempts} reviews={submission.reviews} maxScore={submission.activity.maxScore} />
           </div>
 

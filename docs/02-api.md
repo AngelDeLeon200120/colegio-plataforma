@@ -427,7 +427,7 @@ validación, auditoría y códigos de error en un solo lugar. El socket solo emp
 |---|---|---|---|---|
 | Actividad publicada | `POST /activities/:id/publish` | Alumnos de la sección | `ACTIVITY_PUBLISHED` | NORMAL |
 | Vence en 24 h, sin entregar | Cron | Alumno | `ACTIVITY_DUE_SOON` | NORMAL |
-| Alumno entrega / reenvía | `POST …/attempts` | Profesor del curso | `SUBMISSION_RECEIVED` | NORMAL |
+| Alumno entrega / reenvía | `POST …/attempts` | Nadie (el profesor lo ve en la actividad, en vivo con `submission:updated`) | — | — |
 | Entrega aprobada | `POST …/approve` | Alumno + encargados | `SUBMISSION_APPROVED` | NORMAL |
 | Entrega rechazada | `POST …/reject` | Alumno + encargados | `SUBMISSION_REJECTED` | HIGH |
 | Vencida en `PENDING` (acepta tardías) | Cron diario | Alumno + encargados | `ACTIVITY_OVERDUE` | HIGH → URGENT desde el 3.er recordatorio |

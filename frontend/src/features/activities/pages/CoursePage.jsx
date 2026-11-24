@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn';
 import { ActivityFormDialog } from '../components/ActivityFormDialog';
 import { ActivityRow } from '../components/ActivityRow';
 import { useCourseReturn } from '../courseReturn';
-import { useTeacherActivities } from '../hooks';
+import { useActivitiesLive, useTeacherActivities } from '../hooks';
 
 const TABS = [
   { id: 'work', label: 'Actividades', icon: ClipboardList },
@@ -48,6 +48,7 @@ export function CoursePage() {
   const activities = useTeacherActivities({ courseId });
   const meetings = useMeetings(courseId);
   useMeetingsLive();
+  useActivitiesLive(courseId);
 
   const { search } = useLocation();
   const scrollRef = useCourseReturn(courseId, search, Boolean(course && activities.data));

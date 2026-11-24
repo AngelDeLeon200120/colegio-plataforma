@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getSocket } from '@/lib/socket';
 import { activitiesApi } from './api';
 
 export const activityKeys = {
@@ -7,7 +9,28 @@ export const activityKeys = {
 };
 
 export function useTeacherActivities(filters = {}) {
-  return useQuery({ queryKey: activityKeys.list(filters), queryFn: () => activitiesApi.list(filters) });
+  return useQuery({ queryKey: activityKeys.list(filters), queryFn: () => activitiesApi.list(filters), refetchOnMount: 'always' });
+}
+
+/** Las entregas del curso se reflejan al momento en sus actividades (por revisar, sin entregar). */
+export function useActivitiesLive(courseId) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!courseId) return undefined;
+    const socket = getSocket();
+    const refresh = () => queryClient.invalidateQueries({ queryKey: activityKeys.all });
+    const subscribe = () => socket.emit('course:subscribe', { courseId: Number(courseId) });
+
+    subscribe();
+    socket.on('connect', subscribe); // las salas se pierden al reconectar
+    socket.on('submission:updated', refresh);
+    return () => {
+      socket.emit('course:unsubscribe', { courseId: Number(courseId) });
+      socket.off('connect', subscribe);
+      socket.off('submission:updated', refresh);
+    };
+  }, [courseId, queryClient]);
 }
 
 /** Cualquier cambio de una actividad afecta listas, Inicio, la cola de revisión y el cuadro de notas (si suma una columna). */

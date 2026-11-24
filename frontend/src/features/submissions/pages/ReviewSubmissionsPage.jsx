@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { AlertTriangle, CalendarClock, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Kbd } from '@/components/ui/Kbd';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/format';
 import { useCourseReturnPath } from '@/features/activities/courseReturn';
 import { isUsingMocks } from '../api';
 import { useActivitySubmissions, useReviewSubmission, useSubmissionLiveUpdates } from '../hooks';
+import { PendingStudents } from '../components/PendingStudents';
 import { SubmissionList } from '../components/SubmissionList';
 import { SubmissionReviewPanel } from '../components/SubmissionReviewPanel';
 
@@ -97,33 +97,49 @@ export function ReviewSubmissionsPage() {
   const [filter, setFilter] = useState('SUBMITTED');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
-  const [detailOpen, setDetailOpen] = useState(false); // solo afecta pantallas pequeñas
+  const autoOpened = useRef(false); // la primera entrega se abre sola una vez
+  const scrollToSelected = useRef(false);
 
   const { data, isLoading, isError, error, refetch } = useActivitySubmissions(activityId);
   const review = useReviewSubmission(activityId);
   const resetReview = review.reset;
   useSubmissionLiveUpdates(activityId, data?.activity.courseId);
 
+  const reviewingId = review.isPending ? review.variables.submissionId : null;
+
   const visibleItems = useMemo(() => {
     if (!data) return [];
     const term = normalize(search.trim());
     return data.items.filter((item) => {
+      // La que se está revisando sigue a la vista hasta que el servidor responde (si falla, no se pierde lo escrito)
+      if (item.id === reviewingId) return true;
       if (filter !== 'ALL' && item.status !== filter) return false;
       if (!term) return true;
       const { firstName, lastName, code } = item.student;
       return normalize(`${firstName} ${lastName} ${code}`).includes(term);
     });
-  }, [data, filter, search]);
+  }, [data, filter, search, reviewingId]);
+  const pendingItems = useMemo(() => (data?.items ?? []).filter((item) => item.status === 'PENDING'), [data]);
 
-  // Seleccionar automáticamente la primera entrega visible
+  // Abrir automáticamente la primera entrega por revisar
   useEffect(() => {
-    if (selectedId === null && visibleItems.length > 0) setSelectedId(visibleItems[0].id);
-  }, [selectedId, visibleItems]);
+    if (autoOpened.current || filter !== 'SUBMITTED' || visibleItems.length === 0) return;
+    autoOpened.current = true;
+    setSelectedId(visibleItems[0].id);
+  }, [visibleItems, filter]);
 
-  const select = (id) => {
+  // Al abrir otra, la anterior se pliega y la lista se mueve: el alumno elegido queda a la vista
+  useEffect(() => {
+    if (!scrollToSelected.current) return;
+    scrollToSelected.current = false;
+    document.getElementById(`entrega-${selectedId}`)?.scrollIntoView({ block: 'start' });
+  }, [selectedId]);
+
+  /** Abre la entrega de un alumno; si ya estaba abierta, la pliega. */
+  const toggle = (id) => {
     resetReview();
-    setSelectedId(id);
-    setDetailOpen(true);
+    scrollToSelected.current = id !== selectedId;
+    setSelectedId(id === selectedId ? null : id);
   };
 
   // Navegación con teclado estilo Linear: J/K o flechas
@@ -137,6 +153,7 @@ export function ReviewSubmissionsPage() {
       const next = visibleItems[Math.min(Math.max(index + step, 0), visibleItems.length - 1)];
       if (next) {
         resetReview();
+        scrollToSelected.current = true;
         setSelectedId(next.id);
       }
     };
@@ -149,7 +166,9 @@ export function ReviewSubmissionsPage() {
     const queue = visibleItems.filter((item) => item.status === 'SUBMITTED' && item.id !== variables.submissionId);
     review.mutate(variables, {
       onSuccess: () => {
-        if (queue.length > 0) setSelectedId(queue[0].id);
+        if (queue.length === 0) return;
+        scrollToSelected.current = true;
+        setSelectedId((current) => (current === variables.submissionId ? queue[0].id : current));
       },
     });
   };
@@ -170,9 +189,9 @@ export function ReviewSubmissionsPage() {
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader activity={data?.activity} summary={data?.summary} />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 max-lg:flex-col max-lg:overflow-y-auto">
         <SubmissionList
-          className={cn('w-full lg:w-[360px] lg:shrink-0', detailOpen && 'hidden lg:flex')}
+          className="shrink-0 lg:flex-1 lg:shrink"
           items={visibleItems}
           summary={data?.summary}
           isLoading={isLoading}
@@ -181,16 +200,17 @@ export function ReviewSubmissionsPage() {
           search={search}
           onSearchChange={setSearch}
           selectedId={selectedId}
-          onSelect={select}
+          onSelect={toggle}
+          renderDetail={(item) => (
+            <SubmissionReviewPanel
+              submissionId={item.id}
+              onReview={handleReview}
+              pendingDecision={review.isPending ? review.variables?.decision : null}
+              reviewError={review.error}
+            />
+          )}
         />
-        <SubmissionReviewPanel
-          className={cn(!detailOpen && 'hidden lg:flex')}
-          submissionId={selectedId}
-          onBack={() => setDetailOpen(false)}
-          onReview={handleReview}
-          pendingDecision={review.isPending ? review.variables?.decision : null}
-          reviewError={review.error}
-        />
+        <PendingStudents items={pendingItems} total={data?.summary.total ?? 0} isLoading={isLoading} />
       </div>
 
       <footer className="hidden items-center gap-4 border-t border-zinc-200 bg-white px-6 py-1.5 text-[11px] text-zinc-500 lg:flex">

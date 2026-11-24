@@ -9,7 +9,7 @@ import { useCourseReturnPath } from '@/features/activities/courseReturn';
 import { isUsingMocks } from '../api';
 import { useActivitySubmissions, useReviewSubmission, useSubmissionLiveUpdates } from '../hooks';
 import { DeliveryRoster } from '../components/DeliveryRoster';
-import { SubmissionList } from '../components/SubmissionList';
+import { SubmissionViewer } from '../components/SubmissionViewer';
 import { SubmissionReviewPanel } from '../components/SubmissionReviewPanel';
 
 const normalize = (text) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -96,7 +96,6 @@ export function ReviewSubmissionsPage() {
   const { activityId } = useParams();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
-  const autoOpened = useRef(false); // la primera entrega se abre sola una vez
   const scrollTarget = useRef(null); // alumno que debe quedar a la vista al abrirse
 
   const { data, isLoading, isError, error, refetch } = useActivitySubmissions(activityId);
@@ -104,25 +103,20 @@ export function ReviewSubmissionsPage() {
   const resetReview = review.reset;
   useSubmissionLiveUpdates(activityId, data?.activity.courseId);
 
-  const visibleItems = useMemo(() => {
-    if (!data) return [];
+  const items = useMemo(() => data?.items ?? [], [data]);
+  const results = useMemo(() => {
     const term = normalize(search.trim());
-    return data.items.filter((item) => {
-      if (!term) return true;
-      const { firstName, lastName, code } = item.student;
-      return normalize(`${firstName} ${lastName} ${code}`).includes(term);
-    });
-  }, [data, search]);
+    if (!term) return [];
+    return items.filter(({ student }) => normalize(`${student.firstName} ${student.lastName} ${student.code}`).includes(term));
+  }, [items, search]);
+  const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
-  // Abrir automáticamente la primera entrega por revisar
+  // Al entrar se muestra el primero de la lista (los que están por revisar van primero)
   useEffect(() => {
-    const first = autoOpened.current ? null : data?.items.find((item) => item.status === 'SUBMITTED');
-    if (!first) return;
-    autoOpened.current = true;
-    setSelectedId((current) => current ?? first.id);
-  }, [data]);
+    if (selected && selected.id !== selectedId) setSelectedId(selected.id);
+  }, [selected, selectedId]);
 
-  // Al abrir otra, la anterior se pliega y la lista se mueve: el alumno elegido queda a la vista
+  // El alumno elegido queda a la vista desde su nombre
   const showSelected = (id) => document.getElementById(`entrega-${id}`)?.scrollIntoView({ block: 'start' });
   useEffect(() => {
     if (selectedId !== null && scrollTarget.current === selectedId) showSelected(selectedId);
@@ -133,18 +127,9 @@ export function ReviewSubmissionsPage() {
     showSelected(id);
   };
 
-  /** Abre la entrega de un alumno; si ya estaba abierta, la pliega. */
-  const toggle = (id) => {
-    autoOpened.current = true;
-    resetReview();
-    scrollTarget.current = id === selectedId ? null : id;
-    setSelectedId(id === selectedId ? null : id);
-  };
-
-  /** Desde el listado de quienes entregaron y quienes no: abre a ese alumno y lo deja a la vista. */
+  /** Muestra a un alumno: desde el listado de quienes entregaron y quienes no, o desde el buscador. */
   const open = (id) => {
-    autoOpened.current = true;
-    setSearch(''); // si la búsqueda lo ocultaba, vuelve a aparecer
+    setSearch('');
     if (id === selectedId) {
       setTimeout(() => showSelected(id));
       return;
@@ -159,23 +144,23 @@ export function ReviewSubmissionsPage() {
     const onKeyDown = (event) => {
       if (isTypingTarget(event.target) || event.metaKey || event.ctrlKey || event.altKey) return;
       const step = { j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 }[event.key];
-      if (!step || visibleItems.length === 0) return;
+      if (!step || items.length === 0) return;
       event.preventDefault();
-      const index = visibleItems.findIndex((item) => item.id === selectedId);
-      const next = visibleItems[Math.min(Math.max(index + step, 0), visibleItems.length - 1)];
-      if (next) {
+      const index = items.findIndex((item) => item.id === selectedId);
+      const next = items[Math.min(Math.max(index + step, 0), items.length - 1)];
+      if (next.id !== selectedId) {
         resetReview();
-        if (next.id !== selectedId) scrollTarget.current = next.id;
+        scrollTarget.current = next.id;
         setSelectedId(next.id);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [visibleItems, selectedId, resetReview]);
+  }, [items, selectedId, resetReview]);
 
   const handleReview = (variables) => {
     // Se calcula antes de la actualización optimista
-    const queue = visibleItems.filter((item) => item.status === 'SUBMITTED' && item.id !== variables.submissionId);
+    const queue = items.filter((item) => item.status === 'SUBMITTED' && item.id !== variables.submissionId);
     review.mutate(variables, {
       onSuccess: () => {
         if (queue.length === 0) return;
@@ -202,14 +187,14 @@ export function ReviewSubmissionsPage() {
       <PageHeader activity={data?.activity} summary={data?.summary} />
 
       <div className="flex min-h-0 flex-1 max-lg:flex-col max-lg:overflow-y-auto">
-        <SubmissionList
+        <SubmissionViewer
           className="shrink-0 lg:flex-1 lg:shrink"
-          items={visibleItems}
+          selected={selected}
           isLoading={isLoading}
           search={search}
+          results={results}
           onSearchChange={setSearch}
-          selectedId={selectedId}
-          onSelect={toggle}
+          onSelect={open}
           renderDetail={(item) => (
             <SubmissionReviewPanel
               submissionId={item.id}
@@ -220,7 +205,7 @@ export function ReviewSubmissionsPage() {
             />
           )}
         />
-        <DeliveryRoster items={data?.items ?? []} isLoading={isLoading} selectedId={selectedId} onSelect={open} />
+        <DeliveryRoster items={items} isLoading={isLoading} selectedId={selectedId} onSelect={open} />
       </div>
 
       <footer className="hidden items-center gap-4 border-t border-zinc-200 bg-white px-6 py-1.5 text-[11px] text-zinc-500 lg:flex">

@@ -25,10 +25,12 @@ export function useActivitiesLive(courseId) {
     subscribe();
     socket.on('connect', subscribe); // las salas se pierden al reconectar
     socket.on('submission:updated', refresh);
+    socket.on('activity:removed', refresh);
     return () => {
       socket.emit('course:unsubscribe', { courseId: Number(courseId) });
       socket.off('connect', subscribe);
       socket.off('submission:updated', refresh);
+      socket.off('activity:removed', refresh);
     };
   }, [courseId, queryClient]);
 }

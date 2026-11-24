@@ -62,7 +62,11 @@ class ActivitiesRepository extends BaseRepository {
       `SELECT ${ACTIVITY_COLUMNS},
               COALESCE(s.total, 0) AS total, COALESCE(s.submitted, 0) AS submitted, COALESCE(s.rejected, 0) AS rejected,
               COALESCE(s.pending, 0) AS pending, COALESCE(s.approved, 0) AS approved,
-              (SELECT COUNT(*) FROM activity_files af WHERE af.school_id = a.school_id AND af.activity_id = a.id) AS resources
+              (SELECT COUNT(*) FROM activity_files af WHERE af.school_id = a.school_id AND af.activity_id = a.id) AS resources,
+              (SELECT gi.id FROM grade_items gi WHERE gi.school_id = a.school_id AND gi.activity_id = a.id) AS grade_item_id,
+              (SELECT COUNT(*) FROM grade_scores gs
+                 JOIN grade_items gi ON gi.school_id = gs.school_id AND gi.id = gs.grade_item_id
+                WHERE gi.school_id = a.school_id AND gi.activity_id = a.id AND (gs.score IS NOT NULL OR gs.is_excused = 1)) AS grade_scores
          ${ACTIVITY_JOINS}
          JOIN academic_years ay ON ay.school_id = sec.school_id AND ay.id = sec.academic_year_id AND ay.status = 'ACTIVE'
          LEFT JOIN (
@@ -81,6 +85,8 @@ class ActivitiesRepository extends BaseRepository {
       return {
         ...activity,
         resourceCount: Number(row.resources),
+        // Columna del cuadro de notas ligada a la actividad (o null) y cuántas notas tiene
+        gradeColumn: row.grade_item_id ? { filled: Number(row.grade_scores) } : null,
         progress: {
           total: Number(row.total),
           submitted: Number(row.submitted),
@@ -264,9 +270,11 @@ class ActivitiesRepository extends BaseRepository {
     return result.affectedRows === 1;
   }
 
-  async softDeleteClosed(activityId) {
+  /** Deja de verse para todos (sus entregas quedan guardadas) y sale de agendas y recordatorios. */
+  async softDelete(activityId) {
     const result = await this.query(
-      `UPDATE activities SET deleted_at = UTC_TIMESTAMP() WHERE school_id = ? AND id = ? AND status = 'CLOSED' AND deleted_at IS NULL`,
+      `UPDATE activities SET status = 'CLOSED', deleted_at = UTC_TIMESTAMP()
+        WHERE school_id = ? AND id = ? AND status IN ('PUBLISHED', 'CLOSED') AND deleted_at IS NULL`,
       [this.schoolId, activityId],
     );
     return result.affectedRows === 1;

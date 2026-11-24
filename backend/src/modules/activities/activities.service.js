@@ -31,35 +31,44 @@ function emitColumnsChanged(courseId, unitId, user) {
 }
 
 /**
- * Borra el borrador y su columna del cuadro, si la tiene y está vacía. Con notas puestas a mano
- * no se borra nada: se quitan antes en el cuadro.
+ * Elimina la actividad y su columna del cuadro de notas. Con notas en la columna pide confirmarlo (force).
+ * En una unidad cerrada el cuadro es de solo lectura: la columna y sus notas se conservan.
  */
-async function deleteDraftWithColumn(user, activity) {
+async function removeWithColumn(user, activity, force) {
+  const isDraft = activity.status === 'DRAFT';
   return withTransaction(async (connection, afterCommit) => {
     const repo = activitiesRepository.withConnection(connection);
     const linked = await repo.lockLinkedGradeItems(activity.id);
-    if (linked.filled > 0) {
-      throw new AppError(
-        409,
-        'HAS_SCORES',
-        `Su columna del cuadro de notas ya tiene ${linked.filled} nota(s). Quítalas en el cuadro antes de eliminar el borrador.`,
-        { filled: linked.filled },
-      );
+    const keepColumn = activity.unit.status === 'CLOSED';
+
+    if (linked.count > 0 && keepColumn && isDraft) {
+      throw AppError.unprocessable('UNIT_CLOSED', `${activity.unit.name} está cerrada: no se puede quitar su columna del cuadro de notas`);
     }
-    if (linked.count > 0) {
-      if (activity.unit.status === 'CLOSED') {
-        throw AppError.unprocessable('UNIT_CLOSED', `${activity.unit.name} está cerrada: no se puede quitar su columna del cuadro de notas`);
+    if (linked.count > 0 && !keepColumn) {
+      if (linked.filled > 0 && !force) {
+        throw new AppError(
+          409,
+          'HAS_SCORES',
+          `Su columna del cuadro de notas tiene ${linked.filled} nota(s). Confirma para eliminarla junto con sus notas.`,
+          { filled: linked.filled },
+        );
       }
       await repo.deleteLinkedGradeItems(activity.id);
       afterCommit(() => emitColumnsChanged(activity.course.id, activity.unit.id, user));
     }
-    // Si ya no es borrador se deshace todo, también la columna
-    if (!(await repo.deleteDraft(activity.id))) throw notRemovable();
+
+    // Si la actividad cambió mientras tanto se deshace todo, también la columna
+    const removed = isDraft ? await repo.deleteDraft(activity.id) : await repo.softDelete(activity.id);
+    if (!removed) throw AppError.conflict('ACTIVITY_CHANGED', 'La actividad cambió mientras la eliminabas. Vuelve a intentarlo.');
+
+    const audience = isDraft ? [] : [...(await repo.findStudentUserIds(activity.course.id)), ...(await repo.findGuardiansOfCourse(activity.course.id)).map((g) => g.guardianId)];
+    afterCommit(() => {
+      const event = { activityId: activity.id, courseId: activity.course.id };
+      emitToRoom(rooms.courseStaff(activity.course.id), 'activity:removed', event);
+      if (audience.length) emitToUsers([...new Set(audience)], 'activity:removed', event);
+    });
   });
 }
-
-const notRemovable = () =>
-  AppError.unprocessable('INVALID_TRANSITION', 'Solo se eliminan borradores y actividades cerradas; una publicada primero se cierra');
 
 const publicActivity = ({ teacherId, ...activity }) => activity;
 
@@ -220,12 +229,11 @@ export const activitiesService = {
   },
 
   /**
-   * Eliminar: un borrador se borra del todo (con su columna vacía del cuadro); una cerrada se oculta (borrado lógico) para no perder
-   * entregas ni notas ya puestas. Una publicada primero se cierra.
+   * Eliminar, en cualquier estado: un borrador se borra del todo; una publicada o cerrada deja de verse para
+   * todos (borrado lógico: sus entregas quedan guardadas). Su columna del cuadro se elimina también.
    */
-  async remove(user, activityId) {
+  async remove(user, activityId, { force = false } = {}) {
     const activity = await loadActivity(user, activityId);
-    if (activity.status === 'DRAFT') return deleteDraftWithColumn(user, activity);
-    if (!(await activitiesRepository.softDeleteClosed(activity.id))) throw notRemovable();
+    await removeWithColumn(user, activity, force);
   },
 };

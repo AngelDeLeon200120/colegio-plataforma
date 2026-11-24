@@ -164,7 +164,7 @@ o `DISCARDED`. Al aplicar se revalida todo; si la hoja cambió desde la validaci
 | POST | `/activities/:id/publish` | T* | `DRAFT → PUBLISHED`; crea `submissions PENDING` por inscrito y notifica a los estudiantes (`ACTIVITY_PUBLISHED`) |
 | POST | `/activities/:id/close` | T* | `PUBLISHED → CLOSED`: no acepta entregas y el job apaga sus recordatorios |
 | POST | `/activities/:id/reopen` | T* | `CLOSED → PUBLISHED`: vuelve a recibir entregas; las pendientes retoman sus recordatorios desde la fecha de entrega y las rechazadas de inmediato. `422 UNIT_CLOSED` si la unidad está cerrada |
-| DELETE | `/activities/:id` | T* | Borrador: se borra del todo, con su columna del cuadro si está vacía (`409 HAS_SCORES` si ya tiene notas). Cerrada: borrado lógico (`deleted_at`), deja de verse para docentes, estudiantes y familias; sus entregas y las notas ya copiadas al cuadro se conservan. Una publicada primero se cierra (`422 INVALID_TRANSITION`) |
+| DELETE | `/activities/:id?force=` | T* | Borrador: se borra del todo. Publicada o cerrada: borrado lógico (`deleted_at`), deja de verse para docentes, estudiantes y familias; sus entregas se conservan. Su columna del cuadro se elimina también; si tiene notas exige `force=true` (`409 HAS_SCORES`). En una unidad cerrada la columna y sus notas se conservan. Evento `activity:removed` |
 
 La vista del estudiante y la familia está en 2.6 (`/me/activities`).
 

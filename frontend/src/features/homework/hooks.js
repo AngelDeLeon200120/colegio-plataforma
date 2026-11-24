@@ -58,11 +58,13 @@ export function useHomeworkLiveUpdates() {
     };
     socket.on('submission:updated', onUpdated);
     socket.on('activity:published', onUpdated);
+    socket.on('activity:removed', onUpdated);
     // Un pago registrado libera las notas que estaban "Pendiente"
     socket.on('finance:status_changed', onUpdated);
     return () => {
       socket.off('submission:updated', onUpdated);
       socket.off('activity:published', onUpdated);
+      socket.off('activity:removed', onUpdated);
       socket.off('finance:status_changed', onUpdated);
     };
   }, [queryClient]);

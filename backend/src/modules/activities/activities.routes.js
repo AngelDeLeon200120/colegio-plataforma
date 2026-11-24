@@ -3,7 +3,7 @@ import { authorize } from '../../core/middleware/authorize.js';
 import { upload } from '../../core/middleware/upload.js';
 import { validate } from '../../core/middleware/validate.js';
 import { SUBMISSION_EXTENSIONS } from '../../core/security/fileSignature.js';
-import { activityParams, courseParams, createBody, listQuery, updateBody } from './activities.schemas.js';
+import { activityParams, courseParams, createBody, listQuery, removeQuery, updateBody } from './activities.schemas.js';
 import { activitiesService } from './activities.service.js';
 
 export const activitiesRouter = Router();
@@ -43,7 +43,7 @@ activitiesRouter.post('/activities/:activityId/reopen', staff, validate({ params
   res.json({ data: await activitiesService.reopen(req.user, req.valid.params.activityId) });
 });
 
-activitiesRouter.delete('/activities/:activityId', staff, validate({ params: activityParams }), async (req, res) => {
-  await activitiesService.remove(req.user, req.valid.params.activityId);
+activitiesRouter.delete('/activities/:activityId', staff, validate({ params: activityParams, query: removeQuery }), async (req, res) => {
+  await activitiesService.remove(req.user, req.valid.params.activityId, req.valid.query);
   res.status(204).end();
 });

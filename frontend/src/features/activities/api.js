@@ -23,5 +23,5 @@ export const activitiesApi = {
   publish: (activityId) => api(`/activities/${activityId}/publish`, { method: 'POST' }),
   close: (activityId) => api(`/activities/${activityId}/close`, { method: 'POST' }),
   reopen: (activityId) => api(`/activities/${activityId}/reopen`, { method: 'POST' }),
-  remove: (activityId) => api(`/activities/${activityId}`, { method: 'DELETE' }),
+  remove: ({ activityId, force }) => api(`/activities/${activityId}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
 };

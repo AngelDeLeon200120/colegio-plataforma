@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/format';
-import { useCloseActivity, useDeleteActivity, usePublishActivity, useReopenActivity } from '../hooks';
+import { useCloseActivity, usePublishActivity, useReopenActivity } from '../hooks';
+import { DeleteActivityDialog } from './DeleteActivityDialog';
 
 export const STATUS = {
   DRAFT: { label: 'Borrador', tone: 'neutral' },
@@ -46,9 +47,9 @@ function ActionsMenu({ activity, onEdit }) {
   const ref = useRef(null);
   const publish = usePublishActivity();
   const close = useCloseActivity();
-  const remove = useDeleteActivity();
+  const [deleting, setDeleting] = useState(false);
   const reopen = useReopenActivity();
-  const error = publish.error ?? close.error ?? reopen.error ?? remove.error;
+  const error = publish.error ?? close.error ?? reopen.error;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -95,20 +96,13 @@ function ActionsMenu({ activity, onEdit }) {
               {confirm === 'reopen' ? 'Confirmar: vuelve a recibir entregas' : 'Reabrir entregas'}
             </button>
           )}
-          {(activity.status === 'DRAFT' || activity.status === 'CLOSED') && (
-            <button type="button" role="menuitem" className={cn(item, 'text-red-600')} onClick={() => run('remove', remove)}>
-              {confirm === 'remove'
-                ? activity.status === 'CLOSED'
-                  ? 'Confirmar: deja de verse para todos'
-                  : 'Confirmar eliminación'
-                : activity.status === 'CLOSED'
-                  ? 'Eliminar actividad'
-                  : 'Eliminar borrador'}
-            </button>
-          )}
+          <button type="button" role="menuitem" className={cn(item, 'text-red-600')} onClick={() => (setOpen(false), setDeleting(true))}>
+            {activity.status === 'DRAFT' ? 'Eliminar borrador' : 'Eliminar actividad'}
+          </button>
           {error && <p className="px-2.5 py-1.5 text-xs text-red-600">{error.message}</p>}
         </div>
       )}
+      {deleting && <DeleteActivityDialog activity={activity} onClose={() => setDeleting(false)} />}
     </div>
   );
 }

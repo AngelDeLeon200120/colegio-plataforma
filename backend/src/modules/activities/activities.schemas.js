@@ -36,6 +36,14 @@ export const createBody = z.object({
   gradeWeight: z.coerce.number().min(0).max(100).optional(),
 });
 
+// Con notas en su columna del cuadro, eliminar exige confirmarlo
+export const removeQuery = z.object({
+  force: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+});
+
 export const updateBody = z
   .object({
     title: z.string().trim().min(3).max(200),

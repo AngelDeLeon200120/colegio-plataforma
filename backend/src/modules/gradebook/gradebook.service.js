@@ -6,7 +6,9 @@ import { assertCourseStaff } from '../academic/academic.access.js';
 import { academicRepository } from '../academic/academic.repository.js';
 import { filesService } from '../files/files.service.js';
 import { financeHoldsRepository, schoolTodayDate } from '../finance/finance.holds.js';
-import { FIXED_COLUMNS, UNIT_POINTS, isFixed, totalLimit } from './gradebook.exams.js';
+import { syncAttendanceScores } from '../attendance/attendance.sync.js';
+import { UNIT_POINTS, isFixed, totalLimit } from './gradebook.exams.js';
+import { ensureSheetItems } from './gradebook.fixed.js';
 import { CELL_ERRORS, cellKey, validateScore } from './gradebook.rules.js';
 import { gradebookRepository } from './gradebook.repository.js';
 import { buildTemplate } from './import/template.builder.js';
@@ -127,16 +129,22 @@ function emitItemsChanged(course, unit, user) {
   emitToRoom(rooms.courseStaff(course.id), 'gradebook:items_changed', { courseId: course.id, unitId: unit.id, updatedBy: user.id });
 }
 
-/** Columnas de la hoja. La primera vez que se abre una unidad que las usa, se crean las fijas (Asistencia, Parcial y Evaluación). */
-async function loadSheetItems(user, course, unit) {
-  const items = await gradebookRepository.listItems(course.id, unit.id);
-  if (!unit.examColumns || unit.status === 'CLOSED') return items;
-  const missing = FIXED_COLUMNS.filter((column) => !items.some((item) => item.kind === column.kind));
-  if (!missing.length) return items;
-
-  await gradebookRepository.ensureFixedItems({ courseId: course.id, unitId: unit.id, columns: missing, createdBy: user.id });
-  return gradebookRepository.listItems(course.id, unit.id);
+/**
+ * Cambiar los puntos de Asistencia recalcula las notas que vienen de pasar lista, en la misma transacción.
+ */
+async function updateAttendancePoints(user, { item, course, unit }, changes) {
+  const students = await academicRepository.listSectionStudents(course.sectionId);
+  await withTransaction(async (connection) => {
+    const repo = gradebookRepository.withConnection(connection);
+    await repo.updateItem(item.id, changes);
+    await syncAttendanceScores(connection, { course, unit, students, userId: user.id });
+    const { highest } = await repo.scoreStats(item.id);
+    if (highest !== null && highest > changes.maxScore) throw scoreOutOfRange(highest, changes.maxScore);
+  });
 }
+
+const scoreOutOfRange = (highest, maxScore) =>
+  AppError.unprocessable('SCORE_OUT_OF_RANGE', `Hay notas de hasta ${highest} en esta columna. Corrígelas antes de bajar la nota máxima a ${maxScore}.`);
 
 /** Columnas fijas: solo cambian sus puntos y si se publican. Juntas no pueden pasar de los 100 de la unidad. */
 async function fixedChanges(item, { maxScore, isPublished }) {
@@ -172,7 +180,7 @@ export const gradebookService = {
     if (!unitSummary) throw AppError.notFound('Unidad no encontrada');
 
     const [items, students, scores] = await Promise.all([
-      loadSheetItems(user, course, unitSummary),
+      ensureSheetItems(gradebookRepository, { courseId: course.id, unit: unitSummary, createdBy: user.id }),
       academicRepository.listSectionStudents(course.sectionId),
       gradebookRepository.listScores(course.id, unitSummary.id),
     ]);
@@ -269,17 +277,15 @@ export const gradebookService = {
   async updateItem(user, itemId, changes) {
     const { item, course, unit } = await loadItemForEdit(user, itemId);
 
-    if (changes.maxScore !== undefined && changes.maxScore < item.maxScore) {
+    const attendancePoints = item.kind === 'ATTENDANCE' && changes.maxScore !== undefined;
+    if (!attendancePoints && changes.maxScore !== undefined && changes.maxScore < item.maxScore) {
       const { highest } = await gradebookRepository.scoreStats(item.id);
-      if (highest !== null && highest > changes.maxScore) {
-        throw AppError.unprocessable(
-          'SCORE_OUT_OF_RANGE',
-          `Hay notas de hasta ${highest} en esta columna. Corrígelas antes de bajar la nota máxima a ${changes.maxScore}.`,
-        );
-      }
+      if (highest !== null && highest > changes.maxScore) throw scoreOutOfRange(highest, changes.maxScore);
     }
 
-    await gradebookRepository.updateItem(item.id, isFixed(item) ? await fixedChanges(item, changes) : changes);
+    const allowed = isFixed(item) ? await fixedChanges(item, changes) : changes;
+    if (attendancePoints) await updateAttendancePoints(user, { item, course, unit }, allowed);
+    else await gradebookRepository.updateItem(item.id, allowed);
     emitItemsChanged(course, unit, user);
     return gradebookRepository.findItem(item.id);
   },

@@ -10,6 +10,7 @@ import { filesRouter, publicFilesRouter } from './modules/files/files.routes.js'
 import { financeRouter } from './modules/finance/finance.routes.js';
 import { gradebookRouter } from './modules/gradebook/gradebook.routes.js';
 import { homeworkRouter } from './modules/homework/homework.routes.js';
+import { attendanceRouter } from './modules/attendance/attendance.routes.js';
 import { calendarRouter } from './modules/calendar/calendar.routes.js';
 import { conductRouter } from './modules/conduct/conduct.routes.js';
 import { staffChatRouter } from './modules/staffchat/staffchat.routes.js';
@@ -45,5 +46,6 @@ apiRouter.use(conductRouter);
 apiRouter.use(staffChatRouter);
 apiRouter.use(reportCardRouter);
 apiRouter.use(gradebookRouter);
+apiRouter.use(attendanceRouter);
 apiRouter.use(financeRouter);
 apiRouter.use(jobsRouter);

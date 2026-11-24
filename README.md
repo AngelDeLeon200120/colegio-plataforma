@@ -49,6 +49,7 @@ mysql -u root -p colegio_saas < database/migrations/006_chat_adjuntos.sql
 mysql -u root -p colegio_saas < database/migrations/007_chat_miembros.sql
 mysql -u root -p colegio_saas < database/migrations/008_parcial_evaluacion.sql
 mysql -u root -p colegio_saas < database/migrations/009_asistencia.sql
+mysql -u root -p colegio_saas < database/migrations/010_asistencia_diaria.sql
 ```
 
 Para desarrollo crea un usuario propio en lugar de usar `root`:

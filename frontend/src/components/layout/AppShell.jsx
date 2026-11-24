@@ -4,6 +4,7 @@ import {
   Award,
   Bell,
   BookOpen,
+  CalendarCheck,
   CalendarDays,
   ClipboardCheck,
   GraduationCap,
@@ -54,6 +55,10 @@ const staffNavigation = [
   { to: NOTIFICATIONS_PATH, label: 'Notificaciones', icon: Bell },
 ];
 
+// Pasar lista es solo del docente
+const attendanceItem = { to: '/attendance', label: 'Asistencias', icon: CalendarCheck };
+const teacherNavigation = staffNavigation.flatMap((item) => (item.to === '/gradebook' ? [item, attendanceItem] : [item]));
+
 const NAVIGATION_BY_ROLE = {
   ADMIN: [
     ...staffNavigation.slice(0, -3),
@@ -62,7 +67,7 @@ const NAVIGATION_BY_ROLE = {
     { to: '/admin/finance', label: 'Finanzas', icon: Wallet },
     ...staffNavigation.slice(-3),
   ],
-  TEACHER: staffNavigation,
+  TEACHER: teacherNavigation,
   STUDENT: [
     homeItem,
     { to: '/my/activities', label: 'Mis tareas', icon: ClipboardCheck },

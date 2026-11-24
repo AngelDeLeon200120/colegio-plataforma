@@ -8,6 +8,7 @@ import { PeoplePage } from '@/features/admin/pages/PeoplePage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuthStore } from '@/features/auth/store';
+import { AttendancePage } from '@/features/attendance/AttendancePage';
 import { CalendarPage } from '@/features/calendar/CalendarPage';
 import { ConductPage } from '@/features/conduct/ConductPage';
 import { FamilyConductPage } from '@/features/conduct/FamilyConductPage';
@@ -76,6 +77,10 @@ export const router = createBrowserRouter([
               { path: 'gradebook', element: <GradebookIndexPage /> },
               { path: 'courses/:courseId/gradebook', element: <GradebookPage /> },
             ],
+          },
+          {
+            element: <RequireAuth roles={['TEACHER']} />,
+            children: [{ path: 'attendance', element: <AttendancePage /> }],
           },
           {
             element: <RequireAuth roles={['STUDENT', 'PARENT']} />,

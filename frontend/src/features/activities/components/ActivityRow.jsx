@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { ClipboardList, Lock, MoreHorizontal, Paperclip } from 'lucide-react';
+import { ClipboardList, MoreHorizontal, Paperclip } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/format';
-import { ACTIVITY_TYPES } from '@/features/homework/model';
 import { useCloseActivity, useDeleteActivity, usePublishActivity, useReopenActivity } from '../hooks';
 
 export const STATUS = {
@@ -28,13 +27,13 @@ export function ProgressBar({ progress }) {
   ];
   const title = segments.map((segment) => `${progress[segment.key]} ${segment.label}`).join(' · ');
   return (
-    <div className="w-36" title={title}>
-      <div className="flex h-1.5 overflow-hidden rounded-full bg-zinc-100" role="img" aria-label={title}>
+    <div className="flex items-center gap-2" title={title}>
+      <div className="flex h-1.5 w-24 sm:w-36 overflow-hidden rounded-full bg-zinc-100" role="img" aria-label={title}>
         {segments.map((segment) => (
           <div key={segment.key} className={segment.className} style={{ width: `${(progress[segment.key] / progress.total) * 100}%` }} />
         ))}
       </div>
-      <p className="mt-1 text-xs text-zinc-500 tabular-nums">
+      <p className="text-xs whitespace-nowrap text-zinc-500 tabular-nums">
         {progress.approved}/{progress.total} aprobadas
       </p>
     </div>
@@ -121,17 +120,21 @@ export function ActivityRow({ activity, onEdit }) {
   const toReview = activity.progress.submitted;
   const reviewPath = activity.status === 'DRAFT' ? null : `/activities/${activity.id}/review`;
 
+  const toReviewBadge = (
+    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-blue-700 tabular-nums">{toReview} por revisar</span>
+  );
+
   return (
     <li
       className={cn(
-        'relative flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 first:rounded-t-lg last:rounded-b-lg',
+        'relative flex items-center gap-x-3 px-4 py-3 sm:gap-x-4 first:rounded-t-lg last:rounded-b-lg',
         reviewPath && 'transition-colors hover:bg-zinc-50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-brand-600',
       )}
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: activity.course.color ?? "#1a73e8" }} aria-hidden>
         <ClipboardList className="size-5" />
       </span>
-      <div className="min-w-0 flex-1 basis-56">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium text-zinc-900">
             {reviewPath ? (
@@ -144,19 +147,24 @@ export function ActivityRow({ activity, onEdit }) {
           </p>
           <Badge tone={status.tone}>{status.label}</Badge>
         </div>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-zinc-500">
-          <span>{activity.course.name}</span>·<span>{ACTIVITY_TYPES[activity.type]}</span>·
-          <span className="inline-flex items-center gap-1">
-            {activity.unit.status === 'CLOSED' && <Lock className="size-3" />}
-            {activity.unit.name}
-          </span>
-          {activity.resourceCount > 0 && (
-            <span className="inline-flex items-center gap-0.5">
-              · <Paperclip className="size-3" /> {activity.resourceCount}
-            </span>
-          )}
-        </p>
-        <p className="mt-0.5 text-xs text-zinc-500">
+        {(reviewPath || activity.resourceCount > 0) && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+            {reviewPath && (
+              // Por encima del enlace del cuadro para conservar el detalle al pasar el cursor
+              <Link to={reviewPath} tabIndex={-1} className="relative">
+                <ProgressBar progress={activity.progress} />
+              </Link>
+            )}
+            {activity.resourceCount > 0 && (
+              <span className="inline-flex items-center gap-0.5" title="Material de apoyo">
+                <Paperclip className="size-3" /> {activity.resourceCount}
+              </span>
+            )}
+            {/* En el teléfono va aquí; en pantallas anchas, a la derecha */}
+            {toReview > 0 && <span className="sm:hidden">{toReviewBadge}</span>}
+          </div>
+        )}
+        <p className="mt-1 text-xs text-zinc-500">
           {scheduled
             ? `Se publica el ${formatDateTime(activity.publishAt)}`
             : activity.dueAt
@@ -165,19 +173,8 @@ export function ActivityRow({ activity, onEdit }) {
         </p>
       </div>
 
-      {reviewPath && (
-        // Por encima del enlace del cuadro para conservar el detalle al pasar el cursor
-        <Link to={reviewPath} tabIndex={-1} className="relative">
-          <ProgressBar progress={activity.progress} />
-        </Link>
-      )}
-
-      <div className="ml-auto flex items-center gap-2">
-        {toReview > 0 && (
-          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-blue-700 tabular-nums">
-            {toReview} por revisar
-          </span>
-        )}
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {toReview > 0 && <span className="max-sm:hidden">{toReviewBadge}</span>}
         <ActionsMenu activity={activity} onEdit={onEdit} />
       </div>
     </li>

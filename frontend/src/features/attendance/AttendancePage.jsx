@@ -46,7 +46,7 @@ function RemoveDayDialog({ date, courseId, onClose, onRemoved }) {
   );
 }
 
-/** Hoja de asistencia: una fila por estudiante y, por cada día, su check y una columna gris para justificar. */
+/** Hoja de asistencia: una fila por estudiante y una columna por día con su check. */
 function AttendanceSheet({ sheet, courseId }) {
   const [changes, setChanges] = useState({}); // "fecha:estudiante" → estado sin guardar
   const [extraDates, setExtraDates] = useState([]);
@@ -124,9 +124,9 @@ function AttendanceSheet({ sheet, courseId }) {
     }
   };
 
-  const onCell = (row, date, action) => {
+  const onCell = (row, date) => {
     setActive({ row, date });
-    action(date, students[row].id);
+    togglePresent(date, students[row].id);
     gridRef.current?.focus({ preventScroll: true });
   };
 
@@ -150,6 +150,13 @@ function AttendanceSheet({ sheet, courseId }) {
         <span className="text-sm font-medium text-zinc-900 first-letter:uppercase">{longDate(activeDate)}</span>
         <Button size="sm" onClick={markAll}>
           <CheckCheck className="size-4" /> Todos vinieron
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => toggleExcused(activeDate, students[activeRow].id)}
+          title={`Falta justificada de ${students[activeRow].firstName} ${students[activeRow].lastName} en este día (no cuenta)`}
+        >
+          Justificar falta
         </Button>
         {activeSaved && (
           <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} disabled={save.isPending || dirty} title={dirty ? 'Guarda primero los cambios' : undefined}>
@@ -220,15 +227,14 @@ function AttendanceSheet({ sheet, courseId }) {
                     const isActive = rowActive && date === activeDate;
                     const name = `${student.firstName} ${student.lastName}`;
                     return (
-                      <DayCells
+                      <DayCell
                         key={date}
                         id={`${row}:${date}`}
                         status={status}
                         active={isActive}
                         changed={cellKey(date, student.id) in changes}
                         label={`${name}, ${formatDate(date, { day: 'numeric', month: 'long' })}`}
-                        onPresent={() => onCell(row, date, togglePresent)}
-                        onExcused={() => onCell(row, date, toggleExcused)}
+                        onClick={() => onCell(row, date)}
                       />
                     );
                   })}
@@ -253,7 +259,7 @@ function AttendanceSheet({ sheet, courseId }) {
               {dates.map((date) => {
                 const count = students.filter((student) => effectiveStatus(sheet, changes, touched, date, student.id) === PRESENT).length;
                 return (
-                  <td key={date} colSpan={2} className={cn(CELL, 'bg-zinc-100 text-center text-xs font-semibold tabular-nums')}>
+                  <td key={date} className={cn(CELL, 'bg-zinc-100 text-center text-xs font-semibold tabular-nums')}>
                     {sheet.days[date] || touched.has(date) ? count : ''}
                   </td>
                 );
@@ -272,7 +278,7 @@ function AttendanceSheet({ sheet, courseId }) {
           <span className="font-bold text-red-600">✗</span> faltó
         </span>
         <span className="flex items-center gap-1">
-          <span className="flex size-3.5 items-center justify-center bg-zinc-300 text-[9px] font-bold text-zinc-800">J</span> justificada (no cuenta)
+          <span className="font-bold text-amber-700">J</span> justificada (no cuenta)
         </span>
         <span className="max-lg:hidden">
           Flechas para moverte · <Kbd>Espacio</Kbd> marcar · <Kbd>J</Kbd> justificar
@@ -317,51 +323,42 @@ function AttendanceSheet({ sheet, courseId }) {
 
 function DayHeader({ date, today, active, changed, onSelect }) {
   return (
-    <>
-      <th className={cn(CELL, HEAD, 'w-14 min-w-14 p-0 text-center', active ? 'bg-brand-100' : 'bg-white')}>
-        <button type="button" onClick={onSelect} className="w-full px-1 py-1 hover:bg-brand-50" title={longDate(date)}>
-          <span className="block text-xs font-bold text-zinc-900">{formatDate(date, { day: 'numeric', month: 'short' })}</span>
-          <span className={cn('block text-[10px] font-normal', date === today ? 'text-brand-700' : 'text-zinc-500')}>
-            {date === today ? 'hoy' : formatDate(date, { weekday: 'short' })}
-            {changed && ' •'}
-          </span>
-        </button>
-      </th>
-      <th className={cn(CELL, HEAD, 'w-8 min-w-8 bg-zinc-300 text-center text-xs font-bold text-zinc-700')} title="Justificada">
-        J
-      </th>
-    </>
+    <th className={cn(CELL, HEAD, 'w-16 min-w-16 p-0 text-center', active ? 'bg-brand-100' : 'bg-white')}>
+      <button type="button" onClick={onSelect} className="w-full px-1 py-1 hover:bg-brand-50" title={longDate(date)}>
+        <span className="block text-xs font-bold text-zinc-900">{formatDate(date, { day: 'numeric', month: 'short' })}</span>
+        <span className={cn('block text-[10px] font-normal', date === today ? 'text-brand-700' : 'text-zinc-500')}>
+          {date === today ? 'hoy' : formatDate(date, { weekday: 'short' })}
+          {changed && ' •'}
+        </span>
+      </button>
+    </th>
   );
 }
 
-function DayCells({ id, status, active, changed, label, onPresent, onExcused }) {
+const MARKS = {
+  [PRESENT]: { text: '✓', label: 'vino', className: 'text-emerald-700' },
+  [ABSENT]: { text: '✗', label: 'faltó', className: 'text-red-600' },
+  [EXCUSED]: { text: 'J', label: 'justificada', className: 'text-amber-700' },
+};
+
+function DayCell({ id, status, active, changed, label, onClick }) {
+  const mark = MARKS[status];
   return (
-    <>
-      <td
-        data-cell={id}
-        role="gridcell"
-        onClick={onPresent}
-        aria-label={`${label}: ${status === PRESENT ? 'vino' : status === ABSENT ? 'faltó' : status === EXCUSED ? 'justificada' : 'sin marcar'}`}
-        className={cn(
-          CELL,
-          'h-8 cursor-pointer text-center text-base font-bold select-none hover:bg-emerald-50',
-          status === PRESENT && 'text-emerald-700',
-          status === ABSENT && 'text-red-600',
-          changed && 'bg-amber-50',
-          active && 'shadow-[inset_0_0_0_2px_var(--color-blue-500)]',
-        )}
-      >
-        {status === PRESENT ? '✓' : status === ABSENT ? '✗' : ''}
-      </td>
-      <td
-        role="gridcell"
-        onClick={onExcused}
-        aria-label={`${label}: ${status === EXCUSED ? 'quitar justificación' : 'justificar'}`}
-        className={cn(CELL, 'h-8 cursor-pointer bg-zinc-300 text-center text-xs font-bold text-zinc-900 select-none hover:bg-zinc-400/70')}
-      >
-        {status === EXCUSED ? 'J' : ''}
-      </td>
-    </>
+    <td
+      data-cell={id}
+      role="gridcell"
+      onClick={onClick}
+      aria-label={`${label}: ${mark?.label ?? 'sin marcar'}`}
+      className={cn(
+        CELL,
+        'h-8 cursor-pointer text-center text-base font-bold select-none hover:bg-emerald-50',
+        mark?.className,
+        changed && 'bg-amber-50',
+        active && 'shadow-[inset_0_0_0_2px_var(--color-blue-500)]',
+      )}
+    >
+      {mark?.text}
+    </td>
   );
 }
 

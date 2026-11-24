@@ -6,6 +6,7 @@ import { assertCourseStaff } from '../academic/academic.access.js';
 import { academicRepository } from '../academic/academic.repository.js';
 import { filesService } from '../files/files.service.js';
 import { financeHoldsRepository, schoolTodayDate } from '../finance/finance.holds.js';
+import { EXAMS, UNIT_POINTS, isExam, totalLimit } from './gradebook.exams.js';
 import { CELL_ERRORS, cellKey, validateScore } from './gradebook.rules.js';
 import { gradebookRepository } from './gradebook.repository.js';
 import { buildTemplate } from './import/template.builder.js';
@@ -126,6 +127,29 @@ function emitItemsChanged(course, unit, user) {
   emitToRoom(rooms.courseStaff(course.id), 'gradebook:items_changed', { courseId: course.id, unitId: unit.id, updatedBy: user.id });
 }
 
+/** Columnas de la hoja. La primera vez que se abre una unidad que las usa, se crean Parcial y Evaluación. */
+async function loadSheetItems(user, course, unit) {
+  const items = await gradebookRepository.listItems(course.id, unit.id);
+  if (!unit.examColumns || unit.status === 'CLOSED') return items;
+  const missing = EXAMS.filter((exam) => !items.some((item) => item.kind === exam.kind));
+  if (!missing.length) return items;
+
+  await gradebookRepository.ensureExamItems({ courseId: course.id, unitId: unit.id, exams: missing, createdBy: user.id });
+  return gradebookRepository.listItems(course.id, unit.id);
+}
+
+/** Parcial y Evaluación: solo cambian sus puntos y si se publican; el resto de los 100 es para el Total. */
+async function examChanges(item, { maxScore, isPublished }) {
+  if (maxScore !== undefined) {
+    const items = await gradebookRepository.listItems(item.courseId, item.unitId);
+    const others = items.filter((other) => isExam(other) && other.id !== item.id).reduce((sum, other) => sum + other.maxScore, 0);
+    if (maxScore + others >= UNIT_POINTS) {
+      throw AppError.unprocessable('EXAM_POINTS_EXCEEDED', `Parcial y Evaluación juntos deben sumar menos de ${UNIT_POINTS} puntos: el resto es para el Total`);
+    }
+  }
+  return { maxScore, weight: maxScore, isPublished };
+}
+
 async function loadItemForEdit(user, itemId) {
   const item = await gradebookRepository.findItem(itemId);
   if (!item) throw AppError.notFound('Columna no encontrada');
@@ -148,7 +172,7 @@ export const gradebookService = {
     if (!unitSummary) throw AppError.notFound('Unidad no encontrada');
 
     const [items, students, scores] = await Promise.all([
-      gradebookRepository.listItems(course.id, unitSummary.id),
+      loadSheetItems(user, course, unitSummary),
       academicRepository.listSectionStudents(course.sectionId),
       gradebookRepository.listScores(course.id, unitSummary.id),
     ]);
@@ -158,6 +182,8 @@ export const gradebookService = {
       unit: unitSummary,
       units,
       readOnly: unitSummary.status === 'CLOSED',
+      // Puntos máximos del Total cuando la unidad usa Parcial y Evaluación; null = total sobre 100 como antes
+      totalLimit: totalLimit(unitSummary, items),
       items,
       students,
       scores,
@@ -253,13 +279,14 @@ export const gradebookService = {
       }
     }
 
-    await gradebookRepository.updateItem(item.id, changes);
+    await gradebookRepository.updateItem(item.id, isExam(item) ? await examChanges(item, changes) : changes);
     emitItemsChanged(course, unit, user);
     return gradebookRepository.findItem(item.id);
   },
 
   async deleteItem(user, itemId, { force }) {
     const { item, course, unit } = await loadItemForEdit(user, itemId);
+    if (isExam(item)) throw AppError.unprocessable('FIXED_COLUMN', `${item.name} es una columna fija y no se puede eliminar`);
 
     const { filled } = await gradebookRepository.scoreStats(item.id);
     if (filled > 0 && !force) {

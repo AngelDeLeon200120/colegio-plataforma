@@ -61,21 +61,30 @@ class AcademicRepository extends BaseRepository {
 
   async findUnit(unitId) {
     const row = await this.one(
-      `SELECT id, academic_year_id, sequence_no, name, status, starts_on, ends_on
+      `SELECT id, academic_year_id, sequence_no, name, status, exam_columns, starts_on, ends_on
          FROM academic_units WHERE school_id = ? AND id = ?`,
       [this.schoolId, unitId],
     );
-    return row && { id: row.id, academicYearId: row.academic_year_id, sequence: row.sequence_no, name: row.name, status: row.status };
+    return (
+      row && {
+        id: row.id,
+        academicYearId: row.academic_year_id,
+        sequence: row.sequence_no,
+        name: row.name,
+        status: row.status,
+        examColumns: Boolean(row.exam_columns),
+      }
+    );
   }
 
   async listUnits(academicYearId) {
     const rows = await this.query(
-      `SELECT id, sequence_no, name, status FROM academic_units
+      `SELECT id, sequence_no, name, status, exam_columns FROM academic_units
         WHERE school_id = ? AND academic_year_id = ?
         ORDER BY sequence_no`,
       [this.schoolId, academicYearId],
     );
-    return rows.map((row) => ({ id: row.id, sequence: row.sequence_no, name: row.name, status: row.status }));
+    return rows.map((row) => ({ id: row.id, sequence: row.sequence_no, name: row.name, status: row.status, examColumns: Boolean(row.exam_columns) }));
   }
 
   /** Alumnos con inscripción activa en la sección, ordenados como en la lista de clase. */

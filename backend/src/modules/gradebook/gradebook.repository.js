@@ -8,9 +8,10 @@ const toItem = (row) => ({
   sortOrder: row.sort_order,
   isPublished: Boolean(row.is_published),
   activityId: row.activity_id,
+  kind: row.kind,
 });
 
-const ITEM_COLUMNS = 'id, name, max_score, weight, sort_order, is_published, activity_id';
+const ITEM_COLUMNS = 'id, name, max_score, weight, sort_order, is_published, activity_id, kind';
 
 // Solo estas columnas se pueden cambiar desde PATCH /grade-items/:id
 const UPDATABLE_ITEM_FIELDS = {
@@ -25,7 +26,7 @@ class GradebookRepository extends BaseRepository {
     const rows = await this.query(
       `SELECT ${ITEM_COLUMNS} FROM grade_items
         WHERE school_id = ? AND course_id = ? AND academic_unit_id = ?
-        ORDER BY sort_order, id`,
+        ORDER BY FIELD(kind, 'REGULAR', 'PARTIAL', 'EVALUATION'), sort_order, id`,
       [this.schoolId, courseId, unitId],
     );
     return rows.map(toItem);
@@ -67,6 +68,16 @@ class GradebookRepository extends BaseRepository {
       [this.schoolId, courseId, unitId, name, maxScore, weight, createdBy, this.schoolId, courseId, unitId],
     );
     return result.insertId;
+  }
+
+  /** Parcial y Evaluación de la unidad; si ya existen no cambia nada (UNIQUE por curso, unidad y tipo). */
+  async ensureExamItems({ courseId, unitId, exams, createdBy }) {
+    await this.query(
+      `INSERT INTO grade_items (school_id, course_id, academic_unit_id, kind, name, max_score, weight, created_by)
+       VALUES ${exams.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+       ON DUPLICATE KEY UPDATE grade_items.id = grade_items.id`,
+      exams.flatMap((exam) => [this.schoolId, courseId, unitId, exam.kind, exam.name, exam.maxScore, exam.maxScore, createdBy]),
+    );
   }
 
   async updateItem(itemId, fields) {

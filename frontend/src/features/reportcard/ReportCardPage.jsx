@@ -45,7 +45,35 @@ function ResultBadge({ result, passing }) {
   );
 }
 
+const isExam = (item) => item.kind === 'PARTIAL' || item.kind === 'EVALUATION';
+
+/** Total de actividades y Nota final, entre las demás notas de la materia. */
+function SummaryRow({ label, value, max, passing, strong }) {
+  const failing = strong && (value / max) * 100 < passing;
+  return (
+    <tr className="bg-zinc-50">
+      <td className="px-4 py-2 font-semibold text-zinc-900">{label}</td>
+      <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">
+        <span className={cn('font-semibold', strong && (failing ? 'text-red-600' : 'text-emerald-700'))}>{formatScore(value)}</span>
+        <span className="text-zinc-400">/{formatScore(max)}</span>
+      </td>
+      <td />
+    </tr>
+  );
+}
+
 function CourseCard({ course, passing }) {
+  // Con Parcial y Evaluación publicados: actividades, Total, Parcial, Evaluación y Nota final
+  const hasFinal = course.final !== null && course.final !== undefined;
+  const rows = hasFinal
+    ? [
+        ...course.items.filter((item) => !isExam(item)),
+        { id: 'total', summary: true, label: 'Total', value: course.zone, max: course.zoneLimit },
+        ...course.items.filter(isExam),
+        { id: 'final', summary: true, strong: true, label: 'Nota final', value: course.final, max: 100 },
+      ]
+    : course.items;
+
   return (
     <article className="break-inside-avoid rounded-xl border border-zinc-200 bg-white shadow-xs">
       <header className="flex items-start gap-3 border-b border-zinc-100 px-4 py-3">
@@ -61,7 +89,10 @@ function CourseCard({ course, passing }) {
       ) : (
         <table className="w-full text-sm">
           <tbody className="divide-y divide-zinc-100">
-            {course.items.map((item) => (
+            {rows.map((item) =>
+              item.summary ? (
+              <SummaryRow key={item.id} {...item} passing={passing} />
+            ) : (
               <tr key={item.id}>
                 <td className="px-4 py-2 text-zinc-700">{item.name}</td>
                 <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums">

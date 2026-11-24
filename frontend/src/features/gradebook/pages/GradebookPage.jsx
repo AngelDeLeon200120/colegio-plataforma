@@ -12,6 +12,7 @@ import { ImportDialog } from '../components/ImportDialog';
 import { ImproveDialog } from '../components/ImproveDialog';
 import { SaveIndicator } from '../components/SaveIndicator';
 import { gradebookKeys, useGradebookLiveUpdates, useGradebookSheet, usePaymentStatus } from '../hooks';
+import { isExam } from '../gridModel';
 import { useGradeSheet } from '../useGradeSheet';
 
 function UnitTabs({ units, currentId, onChange }) {
@@ -59,7 +60,8 @@ function Sheet({ courseId, sheet, sheetKey }) {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const weightSum = sheet.items.reduce((sum, item) => sum + item.weight, 0);
+  const weightSum = sheet.items.reduce((sum, item) => (isExam(item) ? sum : sum + item.weight), 0);
+  const unitPoints = sheet.totalLimit ?? 100; // lo que deben sumar las columnas del Total
 
   // Celda seleccionada: a ella se aplica la "Mejora"
   const clampIndex = (value, length) => Math.min(Math.max(value, 0), length - 1);
@@ -164,7 +166,8 @@ function Sheet({ courseId, sheet, sheetKey }) {
           courseId={courseId}
           unitId={sheet.unit.id}
           item={columnDialog.item}
-          remainingWeight={100 - weightSum}
+          remainingWeight={unitPoints - weightSum}
+          unitPoints={unitPoints}
         />
       )}
 

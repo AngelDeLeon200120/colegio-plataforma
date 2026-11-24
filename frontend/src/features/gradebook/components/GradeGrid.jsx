@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { cn } from '@/lib/cn';
 import { formatDate, formatMoney, formatScore } from '@/lib/format';
-import { ERROR_LABELS, PASSING_SCORE, accumulatedTotal, average, cellText, parseInput, parseTsv, round, toTsv } from '../gridModel';
+import { ERROR_LABELS, PASSING_SCORE, average, cellText, isExam, parseInput, parseTsv, round, studentTotals, toTsv } from '../gridModel';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -73,7 +73,8 @@ function ItemHeader({ item, readOnly, onEdit }) {
           className={cn('size-3', item.isPublished ? 'text-emerald-600' : 'text-zinc-400')}
           aria-label={item.isPublished ? 'Visible para estudiantes y familias' : 'Oculta para estudiantes y familias'}
         />
-        /{formatScore(item.maxScore)} · {formatScore(item.weight)}%
+        /{formatScore(item.maxScore)}
+        {!isExam(item) && <> · {formatScore(item.weight)}%</>}
       </span>
     </>
   );
@@ -104,7 +105,10 @@ const inArea = (area, row, col) => area && row >= area.top && row <= area.bottom
 const OBSCURED = 'text-zinc-400 line-through decoration-red-500 decoration-2 blur-[2.5px]';
 
 export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
-  const { items, students, readOnly } = sheet;
+  const { items, students, readOnly, totalLimit } = sheet;
+  // Parcial y Evaluación van al final, después del Total (el servidor ya las envía en ese orden)
+  const hasExams = totalLimit !== null && totalLimit !== undefined;
+  const regularCount = items.filter((item) => !isExam(item)).length;
   const { state, dispatch, getCell, setCells, undo } = grid;
   const containerRef = useRef(null);
   const dragging = useRef(false);
@@ -359,8 +363,110 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
     return cell.error ? null : cell.value;
   };
 
-  const weightSum = items.reduce((sum, item) => sum + item.weight, 0);
-  const totals = students.map((student) => accumulatedTotal(items, valueOf(student)));
+  const weightSum = items.reduce((sum, item) => (isExam(item) ? sum : sum + item.weight), 0);
+  const results = students.map((student) => studentTotals(items, totalLimit, valueOf(student)));
+  const totals = results.map((result) => result.total);
+  const finals = results.map((result) => result.final);
+  const passingTotal = hasExams ? (totalLimit * PASSING_SCORE) / 100 : PASSING_SCORE;
+  const weightsOk = hasExams ? weightSum <= totalLimit : weightSum === 100;
+
+  const renderHeader = (item, col) => (
+    <th
+      key={item.id}
+      scope="col"
+      className={cn(
+        'sticky top-0 z-20 w-28 min-w-28 max-w-28 border-r border-b border-zinc-200 bg-zinc-50 p-0',
+        col >= range.left && col <= range.right && 'bg-blue-50',
+      )}
+    >
+      <ItemHeader item={item} readOnly={readOnly} onEdit={onEditItem} />
+    </th>
+  );
+
+  const renderCell = (student, row, item, col, { rowSelected, obscured }) => {
+    const cell = getCell(student.id, item.id);
+    const isActive = row === active.row && col === active.col;
+    const inRange = rowSelected && col >= range.left && col <= range.right;
+    const improved = improvedKeys.has(`${student.id}:${item.id}`) && !cell.dirty && !cell.error;
+    const previewRaw = fill && inArea(fill.target, row, col) && !inArea(fill.source, row, col) ? fillRaw(fill.source, row, col) : null;
+    const previewError = previewRaw !== null && parseInput(previewRaw, item.maxScore).error;
+    const showHandle = !readOnly && !state.editing && !fill && row === range.bottom && col === range.right;
+    return (
+      <td
+        key={item.id}
+        data-cell={`${row}-${col}`}
+        role="gridcell"
+        aria-selected={inRange}
+        aria-invalid={Boolean(cell.error) || undefined}
+        onMouseDown={(event) => onCellMouseDown(event, row, col)}
+        onMouseEnter={() => onCellMouseEnter(row, col)}
+        onDoubleClick={() => startEdit('edit', cellText(cell))}
+        className={cn(
+          'relative h-9 cursor-cell border-r border-b border-zinc-200 px-2 text-right tabular-nums select-none',
+          readOnly ? 'text-zinc-500' : 'text-zinc-900',
+          inRange && !isActive && 'bg-blue-50',
+          cell.error && 'bg-red-50 text-red-700',
+          improved && !inRange && 'bg-sky-50',
+          improved && 'font-semibold text-blue-700',
+          previewRaw !== null && 'bg-blue-50/70 italic outline-1 -outline-offset-2 outline-blue-400 outline-dashed',
+          previewError && 'bg-red-50 text-red-600',
+          isActive && 'z-[5] shadow-[inset_0_0_0_2px_var(--color-blue-500)]',
+        )}
+        title={improved ? 'Nota mejorada (ver historial con el botón Mejora)' : undefined}
+      >
+        {improved && (
+          <span
+            className="absolute top-0 left-0 size-0 border-t-[7px] border-r-[7px] border-t-blue-600 border-r-transparent"
+            aria-label="Nota mejorada"
+          />
+        )}
+        {previewRaw !== null ? (
+          previewRaw
+        ) : cell.error ? (
+          cell.raw
+        ) : cell.value === null ? (
+          ''
+        ) : (
+          <span className={cn(obscured && OBSCURED)}>{formatScore(cell.value)}</span>
+        )}
+        {showHandle && (
+          <span
+            onMouseDown={startFill}
+            className="absolute -right-1 -bottom-1 z-20 size-2.5 cursor-crosshair border border-white bg-blue-600"
+            title="Arrastra para rellenar"
+            aria-label="Rellenar arrastrando"
+          />
+        )}
+        {(cell.dirty || cell.saving) && (
+          <span
+            className={cn('absolute top-1 right-1 size-1.5 rounded-full', cell.saving ? 'animate-pulse bg-blue-500' : 'bg-amber-500')}
+            aria-label={cell.saving ? 'Guardando' : 'Sin guardar'}
+          />
+        )}
+        {isActive && state.editing && (
+          <CellEditor
+            value={state.editing.value}
+            mode={state.editing.mode}
+            onChange={(value) => dispatch({ type: 'UPDATE_EDIT', value })}
+            onCommit={commitEdit}
+            onCancel={() => {
+              dispatch({ type: 'STOP_EDIT' });
+              focusGrid();
+            }}
+          />
+        )}
+      </td>
+    );
+  };
+
+  const renderMean = (item) => {
+    const mean = average(students.map((student) => valueOf(student)(item)));
+    return (
+      <td key={item.id} className="sticky bottom-0 z-10 h-9 border-t border-r border-zinc-200 bg-zinc-50 px-2 text-right text-xs text-zinc-600 tabular-nums">
+        {formatScore(round(mean))}
+      </td>
+    );
+  };
 
   const activeCell = getCell(activeStudent.id, activeItem.id);
 
@@ -388,7 +494,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
         role="grid"
         aria-label="Cuadro de notas"
         aria-rowcount={rowCount + 1}
-        aria-colcount={colCount + 3}
+        aria-colcount={colCount + (hasExams ? 4 : 3)}
         aria-readonly={readOnly || undefined}
         onKeyDown={onKeyDown}
         onCopy={onCopy}
@@ -404,24 +510,24 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
               <th className="sticky top-0 left-20 z-30 w-56 min-w-56 border-r border-b border-zinc-200 bg-zinc-50 px-3 text-left text-xs font-medium text-zinc-500 shadow-[1px_0_0_var(--color-zinc-200)]">
                 Estudiante
               </th>
-              {items.map((item, col) => (
-                <th
-                  key={item.id}
-                  scope="col"
-                  className={cn(
-                    'sticky top-0 z-20 w-28 min-w-28 max-w-28 border-r border-b border-zinc-200 bg-zinc-50 p-0',
-                    col >= range.left && col <= range.right && 'bg-blue-50',
-                  )}
-                >
-                  <ItemHeader item={item} readOnly={readOnly} onEdit={onEditItem} />
-                </th>
-              ))}
+              {items.slice(0, regularCount).map((item, col) => renderHeader(item, col))}
               <th className="sticky top-0 z-20 w-24 min-w-24 border-b border-zinc-200 bg-zinc-100 px-2 py-1.5 text-right">
                 <span className="block text-xs font-semibold text-zinc-800">Total</span>
-                <span className={cn('mt-0.5 block text-[11px] font-normal tabular-nums', weightSum === 100 ? 'text-zinc-500' : 'text-amber-700')}>
-                  pesos {formatScore(weightSum)}%
+                <span className={cn('mt-0.5 block text-[11px] font-normal tabular-nums', weightsOk ? 'text-zinc-500' : 'text-amber-700')}
+                  title={hasExams && !weightsOk ? `Las actividades suman ${formatScore(weightSum)} puntos: el Total no pasa de ${formatScore(totalLimit)}` : undefined}
+                >
+                  {hasExams ? `${formatScore(weightSum)} de ${formatScore(totalLimit)}` : `pesos ${formatScore(weightSum)}%`}
                 </span>
               </th>
+              {hasExams && (
+                <>
+                  {items.slice(regularCount).map((item, index) => renderHeader(item, regularCount + index))}
+                  <th className="sticky top-0 z-20 w-24 min-w-24 border-b border-zinc-200 bg-zinc-100 px-2 py-1.5 text-right">
+                    <span className="block text-xs font-semibold text-zinc-800">Nota final</span>
+                    <span className="mt-0.5 block text-[11px] font-normal text-zinc-500 tabular-nums">/100</span>
+                  </th>
+                </>
+              )}
               {!readOnly && (
                 <th className="sticky top-0 z-20 border-b border-zinc-200 bg-zinc-50 px-1">
                   <button
@@ -441,7 +547,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
           <tbody>
             {students.map((student, row) => {
               const rowSelected = row >= range.top && row <= range.bottom;
-              const total = totals[row];
+              const { total, final } = results[row];
               const unpaid = Boolean(payment?.unpaid.has(student.id));
               const obscured = unpaid && payment.obscure;
               return (
@@ -473,90 +579,30 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                     </span>
                   </th>
 
-                  {items.map((item, col) => {
-                    const cell = getCell(student.id, item.id);
-                    const isActive = row === active.row && col === active.col;
-                    const inRange = rowSelected && col >= range.left && col <= range.right;
-                    const improved = improvedKeys.has(`${student.id}:${item.id}`) && !cell.dirty && !cell.error;
-                    const previewRaw = fill && inArea(fill.target, row, col) && !inArea(fill.source, row, col) ? fillRaw(fill.source, row, col) : null;
-                    const previewError = previewRaw !== null && parseInput(previewRaw, item.maxScore).error;
-                    const showHandle = !readOnly && !state.editing && !fill && row === range.bottom && col === range.right;
-                    return (
-                      <td
-                        key={item.id}
-                        data-cell={`${row}-${col}`}
-                        role="gridcell"
-                        aria-selected={inRange}
-                        aria-invalid={Boolean(cell.error) || undefined}
-                        onMouseDown={(event) => onCellMouseDown(event, row, col)}
-                        onMouseEnter={() => onCellMouseEnter(row, col)}
-                        onDoubleClick={() => startEdit('edit', cellText(cell))}
-                        className={cn(
-                          'relative h-9 cursor-cell border-r border-b border-zinc-200 px-2 text-right tabular-nums select-none',
-                          readOnly ? 'text-zinc-500' : 'text-zinc-900',
-                          inRange && !isActive && 'bg-blue-50',
-                          cell.error && 'bg-red-50 text-red-700',
-                          improved && !inRange && 'bg-sky-50',
-                          improved && 'font-semibold text-blue-700',
-                          previewRaw !== null && 'bg-blue-50/70 italic outline-1 -outline-offset-2 outline-blue-400 outline-dashed',
-                          previewError && 'bg-red-50 text-red-600',
-                          isActive && 'z-[5] shadow-[inset_0_0_0_2px_var(--color-blue-500)]',
-                        )}
-                        title={improved ? 'Nota mejorada (ver historial con el botón Mejora)' : undefined}
-                      >
-                        {improved && (
-                          <span
-                            className="absolute top-0 left-0 size-0 border-t-[7px] border-r-[7px] border-t-blue-600 border-r-transparent"
-                            aria-label="Nota mejorada"
-                          />
-                        )}
-                        {previewRaw !== null ? (
-                          previewRaw
-                        ) : cell.error ? (
-                          cell.raw
-                        ) : cell.value === null ? (
-                          ''
-                        ) : (
-                          <span className={cn(obscured && OBSCURED)}>{formatScore(cell.value)}</span>
-                        )}
-                        {showHandle && (
-                          <span
-                            onMouseDown={startFill}
-                            className="absolute -right-1 -bottom-1 z-20 size-2.5 cursor-crosshair border border-white bg-blue-600"
-                            title="Arrastra para rellenar"
-                            aria-label="Rellenar arrastrando"
-                          />
-                        )}
-                        {(cell.dirty || cell.saving) && (
-                          <span
-                            className={cn('absolute top-1 right-1 size-1.5 rounded-full', cell.saving ? 'animate-pulse bg-blue-500' : 'bg-amber-500')}
-                            aria-label={cell.saving ? 'Guardando' : 'Sin guardar'}
-                          />
-                        )}
-                        {isActive && state.editing && (
-                          <CellEditor
-                            value={state.editing.value}
-                            mode={state.editing.mode}
-                            onChange={(value) => dispatch({ type: 'UPDATE_EDIT', value })}
-                            onCommit={commitEdit}
-                            onCancel={() => {
-                              dispatch({ type: 'STOP_EDIT' });
-                              focusGrid();
-                            }}
-                          />
-                        )}
-                      </td>
-                    );
-                  })}
+                  {items.slice(0, regularCount).map((item, col) => renderCell(student, row, item, col, { rowSelected, obscured }))}
 
                   <td
                     className={cn(
                       'border-b border-zinc-200 bg-zinc-50 px-2 text-right font-semibold tabular-nums',
-                      total !== null && total < PASSING_SCORE ? 'text-red-600' : 'text-zinc-900',
+                      total !== null && total < passingTotal ? 'text-red-600' : 'text-zinc-900',
                     )}
                   >
                     {total === null ? '—' : <span className={cn(obscured && OBSCURED)}>{formatScore(round(total))}</span>}
                   </td>
+                  {hasExams && (
+                    <>
+                      {items.slice(regularCount).map((item, index) => renderCell(student, row, item, regularCount + index, { rowSelected, obscured }))}
+                      <td
+                        className={cn(
+                          'border-b border-zinc-200 bg-zinc-100 px-2 text-right font-bold tabular-nums',
+                          final !== null && final < PASSING_SCORE ? 'text-red-600' : 'text-zinc-900',
+                        )}
+                        title="Total + Parcial + Evaluación"
+                      >
+                        {final === null ? '—' : <span className={cn(obscured && OBSCURED)}>{formatScore(round(final))}</span>}
+                      </td>
+                    </>
+                  )}
                   {!readOnly && <td className="border-b border-zinc-200" />}
                 </tr>
               );
@@ -572,17 +618,18 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
               >
                 Promedio de la clase
               </th>
-              {items.map((item) => {
-                const mean = average(students.map((student) => valueOf(student)(item)));
-                return (
-                  <td key={item.id} className="sticky bottom-0 z-10 h-9 border-t border-r border-zinc-200 bg-zinc-50 px-2 text-right text-xs text-zinc-600 tabular-nums">
-                    {formatScore(round(mean))}
-                  </td>
-                );
-              })}
+              {items.slice(0, regularCount).map(renderMean)}
               <td className="sticky bottom-0 z-10 border-t border-zinc-200 bg-zinc-100 px-2 text-right text-xs font-semibold tabular-nums">
                 {formatScore(round(average(totals)))}
               </td>
+              {hasExams && (
+                <>
+                  {items.slice(regularCount).map(renderMean)}
+                  <td className="sticky bottom-0 z-10 border-t border-zinc-200 bg-zinc-100 px-2 text-right text-xs font-semibold tabular-nums">
+                    {formatScore(round(average(finals)))}
+                  </td>
+                </>
+              )}
               {!readOnly && <td className="sticky bottom-0 border-t border-zinc-200 bg-zinc-50" />}
             </tr>
           </tfoot>

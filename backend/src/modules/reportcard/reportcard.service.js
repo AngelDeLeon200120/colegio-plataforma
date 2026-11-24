@@ -1,6 +1,7 @@
 import { AppError } from '../../core/errors/AppError.js';
 import { BaseRepository } from '../../core/db/BaseRepository.js';
 import { unpaidUnitsOf } from '../finance/finance.holds.js';
+import { EXAMS, UNIT_POINTS, isExam, totalLimit } from '../gradebook/gradebook.exams.js';
 import { resolveStudent } from '../homework/homework.service.js';
 
 // Nota mínima de aprobación sobre 100 (la misma que usa el cuadro de notas).
@@ -25,12 +26,12 @@ class ReportCardRepository extends BaseRepository {
   /** Las unidades futuras no se muestran: solo la activa y las cerradas. */
   async listVisibleUnits(yearId) {
     const rows = await this.query(
-      `SELECT id, name, status FROM academic_units
+      `SELECT id, name, status, exam_columns FROM academic_units
         WHERE school_id = ? AND academic_year_id = ? AND status IN ('ACTIVE', 'CLOSED')
         ORDER BY sequence_no`,
       [this.schoolId, yearId],
     );
-    return rows.map((row) => ({ id: row.id, name: row.name, status: row.status }));
+    return rows.map((row) => ({ id: row.id, name: row.name, status: row.status, examColumns: Boolean(row.exam_columns) }));
   }
 
   async listCourses(sectionId) {
@@ -46,27 +47,29 @@ class ReportCardRepository extends BaseRepository {
     return rows.map((row) => ({ id: row.id, subject: row.subject, color: row.color, teacher: `${row.first_name} ${row.last_name}` }));
   }
 
-  /** Solo columnas publicadas por el docente, con la nota del estudiante (si tiene). */
-  async listPublishedItems(sectionId, studentId, unitIds) {
+  /** Columnas de las unidades con la nota del estudiante (si tiene); las no publicadas nunca salen del servidor una por una. */
+  async listItems(sectionId, studentId, unitIds) {
     if (!unitIds.length) return [];
     const rows = await this.query(
-      `SELECT gi.id, gi.course_id, gi.academic_unit_id, gi.name, gi.max_score, gi.weight, gs.score, gs.is_excused
+      `SELECT gi.id, gi.course_id, gi.academic_unit_id, gi.kind, gi.name, gi.max_score, gi.weight, gi.is_published, gs.score, gs.is_excused
          FROM grade_items gi
          JOIN courses c ON c.school_id = gi.school_id AND c.id = gi.course_id AND c.section_id = ?
          LEFT JOIN grade_scores gs ON gs.school_id = gi.school_id AND gs.grade_item_id = gi.id AND gs.student_id = ?
-        WHERE gi.school_id = ? AND gi.is_published = 1 AND gi.academic_unit_id IN (${unitIds.map(() => '?').join(', ')})
-        ORDER BY gi.sort_order, gi.id`,
+        WHERE gi.school_id = ? AND gi.academic_unit_id IN (${unitIds.map(() => '?').join(', ')})
+        ORDER BY FIELD(gi.kind, 'REGULAR', 'PARTIAL', 'EVALUATION'), gi.sort_order, gi.id`,
       [sectionId, studentId, this.schoolId, ...unitIds],
     );
     return rows.map((row) => ({
       id: row.id,
       courseId: row.course_id,
       unitId: row.academic_unit_id,
+      kind: row.kind,
       name: row.name,
       maxScore: row.max_score,
       weight: row.weight,
       score: row.score ?? null,
       isExcused: Boolean(row.is_excused),
+      isPublished: Boolean(row.is_published),
     }));
   }
 }
@@ -81,14 +84,28 @@ const round1 = (value) => Math.round(value * 10) / 10;
  *  - percent: rendimiento sobre lo publicado (total ÷ pesos publicados × 100).
  * A mitad de unidad solo hay parte de los puntos publicados: 29 de 30 es un 97 %, no un 29 reprobado.
  * null si no hay columnas publicadas con peso.
+ * Con Parcial y Evaluación (limit): las actividades suman hasta `limit` puntos. Al publicarse las dos, el Total y la
+ * Nota final son los mismos del cuadro del docente (cuentan también las columnas que aún no publica).
  */
-function result(items) {
+function result(allItems, limit) {
+  const items = allItems.filter((item) => item.isPublished);
   const weighted = items.filter((item) => item.weight > 0);
   if (!weighted.length) return { total: null, published: 0, percent: null };
-  const total = weighted.reduce((sum, item) => (item.score === null ? sum : sum + (item.score / item.maxScore) * item.weight), 0);
-  const published = weighted.reduce((sum, item) => sum + item.weight, 0);
-  return { total: round1(total), published: round1(published), percent: round1((total / published) * 100) };
+  const earned = (list) => list.reduce((sum, item) => (item.score === null ? sum : sum + (item.score / item.maxScore) * item.weight), 0);
+  const points = (list) => list.reduce((sum, item) => sum + item.weight, 0);
+  const exams = weighted.filter(isExam);
+  const final = exams.length === EXAMS.length;
+  const regular = (final ? allItems : weighted).filter((item) => !isExam(item) && item.weight > 0);
+  const cap = limit ?? Infinity;
+  const zone = Math.min(earned(regular), cap);
+  const total = zone + earned(exams);
+  const published = final ? UNIT_POINTS : Math.min(points(regular), cap) + points(exams);
+  const extra = exams.length ? { zone: round1(zone), zoneLimit: round1(limit), final: final ? round1(total) : null } : {};
+  return { ...extra, total: round1(total), published: round1(published), percent: round1((total / published) * 100) };
 }
+
+const publicItems = (items) =>
+  items.filter((item) => item.isPublished).map(({ courseId: _course, unitId: _unit, isPublished: _published, ...item }) => item);
 
 export const reportCardService = {
   async get(user, { studentId, unitId }) {
@@ -103,7 +120,7 @@ export const reportCardService = {
 
     const [courses, rawItems, withheld] = await Promise.all([
       repo.listCourses(enrollment.sectionId),
-      repo.listPublishedItems(
+      repo.listItems(
         enrollment.sectionId,
         student.id,
         units.map((u) => u.id),
@@ -113,14 +130,17 @@ export const reportCardService = {
 
     // Unidad con pagos vencidos: las notas no salen del servidor; se ven como "Pendiente"
     const items = rawItems.map((item) => (withheld.has(item.unitId) ? { ...item, score: null, withheld: true } : item));
+    const unitsById = new Map(units.map((u) => [u.id, u]));
     const resultOf = (courseItems, forUnitId) =>
-      withheld.has(forUnitId) ? { total: null, published: 0, percent: null, withheld: true } : result(courseItems);
+      withheld.has(forUnitId)
+        ? { total: null, published: 0, percent: null, withheld: true }
+        : result(courseItems, totalLimit(unitsById.get(forUnitId), courseItems));
 
     const itemsOf = (courseId, forUnitId) => items.filter((item) => item.courseId === courseId && item.unitId === forUnitId);
 
     const unitCourses = courses.map((course) => {
       const courseItems = itemsOf(course.id, unit.id);
-      return { ...course, items: courseItems.map(({ courseId, unitId: _unit, ...item }) => item), ...resultOf(courseItems, unit.id) };
+      return { ...course, items: publicItems(courseItems), ...resultOf(courseItems, unit.id) };
     });
     const graded = unitCourses.filter((course) => course.percent !== null);
 
@@ -128,8 +148,8 @@ export const reportCardService = {
       student: { ...student, section: enrollment.section },
       year: enrollment.yearName,
       passingScore: PASSING_SCORE,
-      units: units.map((u) => ({ ...u, withheld: withheld.has(u.id) })),
-      unit: { ...unit, withheld: withheld.has(unit.id) },
+      units: units.map(({ examColumns: _exams, ...u }) => ({ ...u, withheld: withheld.has(u.id) })),
+      unit: { id: unit.id, name: unit.name, status: unit.status, withheld: withheld.has(unit.id) },
       courses: unitCourses,
       // Promedio de rendimiento entre las materias con notas publicadas
       average: graded.length ? round1(graded.reduce((sum, course) => sum + course.percent, 0) / graded.length) : null,

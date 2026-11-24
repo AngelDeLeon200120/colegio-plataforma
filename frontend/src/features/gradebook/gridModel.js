@@ -57,6 +57,23 @@ export function accumulatedTotal(items, valueOf) {
   }, 0);
 }
 
+export const isExam = (item) => item.kind === 'PARTIAL' || item.kind === 'EVALUATION';
+
+/**
+ * Totales de un estudiante. Con Parcial y Evaluación (`limit`), el Total de actividades llega hasta
+ * `limit` puntos y la nota final es Total + Parcial + Evaluación, sobre 100.
+ */
+export function studentTotals(items, limit, valueOf) {
+  const zone = accumulatedTotal(
+    items.filter((item) => !isExam(item)),
+    valueOf,
+  );
+  if (limit === null || limit === undefined) return { total: zone, final: null };
+  const total = zone === null ? null : Math.min(zone, limit);
+  const parts = [total, ...items.filter(isExam).map(valueOf)].filter((value) => value !== null && value !== undefined);
+  return { total, final: parts.length ? parts.reduce((sum, value) => sum + value, 0) : null };
+}
+
 export function average(values) {
   const present = values.filter((value) => value !== null && value !== undefined);
   return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;

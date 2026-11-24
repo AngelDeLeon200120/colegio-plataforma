@@ -102,7 +102,7 @@ Pendiente: crear o cerrar el ciclo lectivo desde la interfaz (hoy se hace en la 
 | GET | `/courses/:id/gradebook/payment-status?unitId=` | T*, A | `{ unpaidStudentIds[], details{ studentId: [{ description, dueDate, balance, status, daysOverdue }] }, obscureScores }`: estudiantes de la sección con un cobro de la unidad (vence entre su inicio y su fin) ya vencido y con saldo, con el detalle de cada cobro. Al docente (`obscureScores: true`) la hoja le muestra esas notas tachadas y borrosas; es solo visual. Para el estudiante y su familia, `/me/report-card` y `/me/activities…` no envían las notas de esas unidades (`withheld` / `scoreWithheld`) y la vista muestra "Pendiente" |
 | GET | `/courses/:id/gradebook/history?gradeItemId=&studentId=` | T* | `{ history[] }` de mejoras de una celda (antes → después, motivo, quién y cuándo) |
 | PATCH | `/grade-items/:id` `{ isPublished }` | T* | Hace visible (u oculta) la columna para S/P. Pendiente: notificar al publicar |
-| GET | `/me/courses` | T, A | Cursos del ciclo activo (docente: los asignados) con número de estudiantes |
+| GET | `/me/courses` | T, A | Cursos del ciclo activo (docente: los asignados) con número de estudiantes y la unidad activa (`activeUnit`) |
 | GET | `/courses/:id/gradebook/template?unitId=&format=xlsx\|csv` | T* | Plantilla con códigos de alumno, columnas y fila oculta de metadatos (`courseId`, `unitId`, `itemIds`) |
 | POST | `/courses/:id/gradebook/imports` | T* | `multipart` (`file`, `unitId`) → **fase 1: valida, no escribe** |
 | GET | `/grade-imports/:id` | T* | Resumen y errores por fila |

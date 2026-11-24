@@ -52,6 +52,11 @@ export function CoursePage() {
   const [section, subject] = course?.name.includes(' · ') ? course.name.split(' · ') : [null, course?.name];
   const upcomingMeetings = (meetings.data?.meetings ?? []).filter((meeting) => ['live', 'upcoming'].includes(meetingPhase(meeting)));
   const list = activities.data ?? [];
+  // Grado y unidad en curso: una sola vez, en el primer grupo visible
+  const gradeAndUnit = [section, course?.activeUnit].filter(Boolean).join(' · ');
+  const visibleGroups = STATUS_GROUPS.map((group) => ({ ...group, items: list.filter((activity) => activity.status === group.status) })).filter(
+    (group) => group.items.length && (!status || group.status === status),
+  );
   const countOf = (value) => (value ? list.filter((activity) => activity.status === value).length : list.length);
 
   if (!loadingCourses && !course) {
@@ -173,22 +178,21 @@ export function CoursePage() {
                 )}
               </div>
             )}
-            {STATUS_GROUPS.filter((group) => !status || group.status === status).map((group) => {
-              const items = list.filter((activity) => activity.status === group.status);
-              if (!items.length) return null;
-              return (
-                <section key={group.status}>
-                  <h2 className="mb-2 flex items-baseline gap-2 border-b border-zinc-200 pb-2 text-lg font-normal" style={{ color }}>
-                    {group.title} <span className="text-xs text-zinc-400 tabular-nums">{items.length}</span>
+            {visibleGroups.map((group, index) => (
+              <section key={group.status}>
+                <div className="mb-2 grid grid-cols-[minmax(max-content,1fr)_minmax(0,auto)_1fr] items-baseline gap-x-2 border-b border-zinc-200 pb-2">
+                  <h2 className="flex items-baseline gap-2 text-lg font-normal" style={{ color }}>
+                    {group.title} <span className="text-xs text-zinc-400 tabular-nums">{group.items.length}</span>
                   </h2>
-                  <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
-                    {items.map((activity) => (
-                      <ActivityRow key={activity.id} activity={activity} onEdit={(item) => setForm({ activity: item })} />
-                    ))}
-                  </ul>
-                </section>
-              );
-            })}
+                  {index === 0 && <p className="truncate text-sm text-zinc-500">{gradeAndUnit}</p>}
+                </div>
+                <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
+                  {group.items.map((activity) => (
+                    <ActivityRow key={activity.id} activity={activity} onEdit={(item) => setForm({ activity: item })} />
+                  ))}
+                </ul>
+              </section>
+            ))}
           </div>
         ) : (
           <div className="mt-5 space-y-4">

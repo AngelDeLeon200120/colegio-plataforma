@@ -43,7 +43,10 @@ class AcademicRepository extends BaseRepository {
     const rows = await this.query(
       `SELECT ${COURSE_COLUMNS},
               (SELECT COUNT(*) FROM enrollments e
-                WHERE e.school_id = c.school_id AND e.section_id = c.section_id AND e.status = 'ACTIVE') AS student_count
+                WHERE e.school_id = c.school_id AND e.section_id = c.section_id AND e.status = 'ACTIVE') AS student_count,
+              (SELECT u.name FROM academic_units u
+                WHERE u.school_id = c.school_id AND u.academic_year_id = sec.academic_year_id AND u.status = 'ACTIVE'
+                ORDER BY u.sequence_no LIMIT 1) AS active_unit
          FROM courses c ${COURSE_JOINS}
          JOIN academic_years ay ON ay.school_id = sec.school_id AND ay.id = sec.academic_year_id AND ay.status = 'ACTIVE'
         WHERE c.school_id = ? AND c.is_active = 1 ${teacherId ? 'AND c.teacher_id = ?' : ''}
@@ -52,7 +55,7 @@ class AcademicRepository extends BaseRepository {
     );
     return rows.map((row) => {
       const { teacherId: _teacher, ...course } = toCourse(row);
-      return { ...course, studentCount: Number(row.student_count) };
+      return { ...course, studentCount: Number(row.student_count), activeUnit: row.active_unit };
     });
   }
 

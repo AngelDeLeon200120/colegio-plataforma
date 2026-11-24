@@ -8,7 +8,7 @@ import { formatDateTime } from '@/lib/format';
 import { useCourseReturnPath } from '@/features/activities/courseReturn';
 import { isUsingMocks } from '../api';
 import { useActivitySubmissions, useReviewSubmission, useSubmissionLiveUpdates } from '../hooks';
-import { PendingStudents } from '../components/PendingStudents';
+import { DeliveryRoster } from '../components/DeliveryRoster';
 import { SubmissionList } from '../components/SubmissionList';
 import { SubmissionReviewPanel } from '../components/SubmissionReviewPanel';
 
@@ -119,7 +119,6 @@ export function ReviewSubmissionsPage() {
       return normalize(`${firstName} ${lastName} ${code}`).includes(term);
     });
   }, [data, filter, search, reviewingId]);
-  const pendingItems = useMemo(() => (data?.items ?? []).filter((item) => item.status === 'PENDING'), [data]);
 
   // Abrir automáticamente la primera entrega por revisar
   useEffect(() => {
@@ -210,7 +209,7 @@ export function ReviewSubmissionsPage() {
             />
           )}
         />
-        <PendingStudents items={pendingItems} total={data?.summary.total ?? 0} isLoading={isLoading} />
+        <DeliveryRoster items={data?.items ?? []} isLoading={isLoading} />
       </div>
 
       <footer className="hidden items-center gap-4 border-t border-zinc-200 bg-white px-6 py-1.5 text-[11px] text-zinc-500 lg:flex">

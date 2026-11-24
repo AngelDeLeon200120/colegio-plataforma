@@ -57,7 +57,11 @@ export function accumulatedTotal(items, valueOf) {
   }, 0);
 }
 
+/** Parcial y Evaluación: van después del Total. */
 export const isExam = (item) => item.kind === 'PARTIAL' || item.kind === 'EVALUATION';
+
+/** Asistencia, Parcial y Evaluación: columnas por defecto; solo cambian sus puntos y si se publican. */
+export const isFixed = (item) => isExam(item) || item.kind === 'ATTENDANCE';
 
 /**
  * Totales de un estudiante. Con Parcial y Evaluación (`limit`), el Total de actividades llega hasta

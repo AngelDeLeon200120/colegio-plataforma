@@ -451,7 +451,7 @@ CREATE TABLE grade_items (
   course_id         BIGINT UNSIGNED   NOT NULL,
   academic_unit_id  BIGINT UNSIGNED   NOT NULL,
   activity_id       BIGINT UNSIGNED   NULL COMMENT 'Opcional: columna ligada a una actividad',
-  kind              ENUM('REGULAR','PARTIAL','EVALUATION') NOT NULL DEFAULT 'REGULAR' COMMENT 'Columna normal, parcial o evaluación',
+  kind              ENUM('REGULAR','PARTIAL','EVALUATION','ATTENDANCE') NOT NULL DEFAULT 'REGULAR' COMMENT 'Columna normal o fija (parcial, evaluación, asistencia)',
   exam_kind         VARCHAR(12) GENERATED ALWAYS AS (IF(kind = 'REGULAR', NULL, kind)) STORED,
   name              VARCHAR(100)      NOT NULL,
   max_score         DECIMAL(5,2)      NOT NULL DEFAULT 100.00,

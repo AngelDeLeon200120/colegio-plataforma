@@ -26,7 +26,7 @@ class GradebookRepository extends BaseRepository {
     const rows = await this.query(
       `SELECT ${ITEM_COLUMNS} FROM grade_items
         WHERE school_id = ? AND course_id = ? AND academic_unit_id = ?
-        ORDER BY FIELD(kind, 'REGULAR', 'PARTIAL', 'EVALUATION'), sort_order, id`,
+        ORDER BY FIELD(kind, 'ATTENDANCE', 'REGULAR', 'PARTIAL', 'EVALUATION'), sort_order, id`,
       [this.schoolId, courseId, unitId],
     );
     return rows.map(toItem);
@@ -70,13 +70,13 @@ class GradebookRepository extends BaseRepository {
     return result.insertId;
   }
 
-  /** Parcial y Evaluación de la unidad; si ya existen no cambia nada (UNIQUE por curso, unidad y tipo). */
-  async ensureExamItems({ courseId, unitId, exams, createdBy }) {
+  /** Columnas fijas de la unidad; si ya existen no cambia nada (UNIQUE por curso, unidad y tipo). */
+  async ensureFixedItems({ courseId, unitId, columns, createdBy }) {
     await this.query(
       `INSERT INTO grade_items (school_id, course_id, academic_unit_id, kind, name, max_score, weight, created_by)
-       VALUES ${exams.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+       VALUES ${columns.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
        ON DUPLICATE KEY UPDATE grade_items.id = grade_items.id`,
-      exams.flatMap((exam) => [this.schoolId, courseId, unitId, exam.kind, exam.name, exam.maxScore, exam.maxScore, createdBy]),
+      columns.flatMap(({ kind, name, maxScore }) => [this.schoolId, courseId, unitId, kind, name, maxScore, maxScore, createdBy]),
     );
   }
 

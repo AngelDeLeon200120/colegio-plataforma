@@ -6,7 +6,7 @@ import { assertCourseStaff } from '../academic/academic.access.js';
 import { academicRepository } from '../academic/academic.repository.js';
 import { filesService } from '../files/files.service.js';
 import { financeHoldsRepository, schoolTodayDate } from '../finance/finance.holds.js';
-import { EXAMS, UNIT_POINTS, isExam, totalLimit } from './gradebook.exams.js';
+import { FIXED_COLUMNS, UNIT_POINTS, isFixed, totalLimit } from './gradebook.exams.js';
 import { CELL_ERRORS, cellKey, validateScore } from './gradebook.rules.js';
 import { gradebookRepository } from './gradebook.repository.js';
 import { buildTemplate } from './import/template.builder.js';
@@ -127,24 +127,24 @@ function emitItemsChanged(course, unit, user) {
   emitToRoom(rooms.courseStaff(course.id), 'gradebook:items_changed', { courseId: course.id, unitId: unit.id, updatedBy: user.id });
 }
 
-/** Columnas de la hoja. La primera vez que se abre una unidad que las usa, se crean Parcial y Evaluación. */
+/** Columnas de la hoja. La primera vez que se abre una unidad que las usa, se crean las fijas (Asistencia, Parcial y Evaluación). */
 async function loadSheetItems(user, course, unit) {
   const items = await gradebookRepository.listItems(course.id, unit.id);
   if (!unit.examColumns || unit.status === 'CLOSED') return items;
-  const missing = EXAMS.filter((exam) => !items.some((item) => item.kind === exam.kind));
+  const missing = FIXED_COLUMNS.filter((column) => !items.some((item) => item.kind === column.kind));
   if (!missing.length) return items;
 
-  await gradebookRepository.ensureExamItems({ courseId: course.id, unitId: unit.id, exams: missing, createdBy: user.id });
+  await gradebookRepository.ensureFixedItems({ courseId: course.id, unitId: unit.id, columns: missing, createdBy: user.id });
   return gradebookRepository.listItems(course.id, unit.id);
 }
 
-/** Parcial y Evaluación: solo cambian sus puntos y si se publican; el resto de los 100 es para el Total. */
-async function examChanges(item, { maxScore, isPublished }) {
+/** Columnas fijas: solo cambian sus puntos y si se publican. Juntas no pueden pasar de los 100 de la unidad. */
+async function fixedChanges(item, { maxScore, isPublished }) {
   if (maxScore !== undefined) {
     const items = await gradebookRepository.listItems(item.courseId, item.unitId);
-    const others = items.filter((other) => isExam(other) && other.id !== item.id).reduce((sum, other) => sum + other.maxScore, 0);
-    if (maxScore + others >= UNIT_POINTS) {
-      throw AppError.unprocessable('EXAM_POINTS_EXCEEDED', `Parcial y Evaluación juntos deben sumar menos de ${UNIT_POINTS} puntos: el resto es para el Total`);
+    const others = items.filter((other) => isFixed(other) && other.id !== item.id).reduce((sum, other) => sum + other.maxScore, 0);
+    if (maxScore + others > UNIT_POINTS) {
+      throw AppError.unprocessable('FIXED_POINTS_EXCEEDED', `Asistencia, Parcial y Evaluación juntas no pueden pasar de ${UNIT_POINTS} puntos`);
     }
   }
   return { maxScore, weight: maxScore, isPublished };
@@ -279,14 +279,14 @@ export const gradebookService = {
       }
     }
 
-    await gradebookRepository.updateItem(item.id, isExam(item) ? await examChanges(item, changes) : changes);
+    await gradebookRepository.updateItem(item.id, isFixed(item) ? await fixedChanges(item, changes) : changes);
     emitItemsChanged(course, unit, user);
     return gradebookRepository.findItem(item.id);
   },
 
   async deleteItem(user, itemId, { force }) {
     const { item, course, unit } = await loadItemForEdit(user, itemId);
-    if (isExam(item)) throw AppError.unprocessable('FIXED_COLUMN', `${item.name} es una columna fija y no se puede eliminar`);
+    if (isFixed(item)) throw AppError.unprocessable('FIXED_COLUMN', `${item.name} es una columna fija y no se puede eliminar`);
 
     const { filled } = await gradebookRepository.scoreStats(item.id);
     if (filled > 0 && !force) {

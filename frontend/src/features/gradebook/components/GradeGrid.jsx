@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { cn } from '@/lib/cn';
 import { formatDate, formatMoney, formatScore } from '@/lib/format';
-import { ERROR_LABELS, PASSING_SCORE, average, cellText, isExam, parseInput, parseTsv, round, studentTotals, toTsv } from '../gridModel';
+import { ERROR_LABELS, PASSING_SCORE, average, cellText, isExam, isFixed, parseInput, parseTsv, round, studentTotals, toTsv } from '../gridModel';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -74,7 +74,7 @@ function ItemHeader({ item, readOnly, onEdit }) {
           aria-label={item.isPublished ? 'Visible para estudiantes y familias' : 'Oculta para estudiantes y familias'}
         />
         /{formatScore(item.maxScore)}
-        {!isExam(item) && <> · {formatScore(item.weight)}%</>}
+        {!isFixed(item) && <> · {formatScore(item.weight)}%</>}
       </span>
     </>
   );

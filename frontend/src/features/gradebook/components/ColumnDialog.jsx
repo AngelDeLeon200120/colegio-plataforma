@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { AlertCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
-import { isExam } from '../gridModel';
+import { isFixed } from '../gridModel';
 import { useCreateItem, useDeleteItem, useUpdateItem } from '../hooks';
 
 const inputClass =
@@ -16,7 +16,7 @@ const toNumber = (text) => Number(String(text).replace(',', '.'));
  */
 export function ColumnDialog({ open, onClose, courseId, unitId, item, remainingWeight, unitPoints = 100 }) {
   const editing = Boolean(item);
-  const exam = editing && isExam(item); // Parcial y Evaluación: solo sus puntos y si se publican
+  const fixed = editing && isFixed(item); // Asistencia, Parcial y Evaluación: solo sus puntos y si se publican
   const [name, setName] = useState(item?.name ?? '');
   const [maxScore, setMaxScore] = useState(String(item?.maxScore ?? 100));
   const [weight, setWeight] = useState(String(item?.weight ?? Math.max(remainingWeight, 0)));
@@ -38,7 +38,7 @@ export function ColumnDialog({ open, onClose, courseId, unitId, item, remainingW
     if (invalid) return;
     const body = { name: name.trim(), maxScore: max, weight: weightValue };
     try {
-      if (exam) await update.mutateAsync({ itemId: item.id, maxScore: max, isPublished });
+      if (fixed) await update.mutateAsync({ itemId: item.id, maxScore: max, isPublished });
       else if (editing) await update.mutateAsync({ itemId: item.id, ...body, isPublished });
       else await create.mutateAsync({ unitId, ...body });
       onClose();
@@ -62,11 +62,11 @@ export function ColumnDialog({ open, onClose, courseId, unitId, item, remainingW
     <Dialog
       open={open}
       onClose={onClose}
-      title={exam ? item.name : editing ? 'Editar columna' : 'Nueva columna'}
+      title={fixed ? item.name : editing ? 'Editar columna' : 'Nueva columna'}
       description={editing ? undefined : 'Una evaluación de esta unidad: tarea, examen, proyecto…'}
       footer={
         <>
-          {editing && !exam && (
+          {editing && !fixed && (
             <Button
               variant={confirmDelete ? 'warning' : 'ghost'}
               className="mr-auto"
@@ -106,7 +106,7 @@ export function ColumnDialog({ open, onClose, courseId, unitId, item, remainingW
           </p>
         )}
 
-        {!exam && (
+        {!fixed && (
           <div className="space-y-1.5">
             <label htmlFor={ids.name} className="block text-sm font-medium text-zinc-700">
               Nombre
@@ -123,14 +123,14 @@ export function ColumnDialog({ open, onClose, courseId, unitId, item, remainingW
           </div>
         )}
 
-        <div className={exam ? undefined : 'grid grid-cols-2 gap-3'}>
+        <div className={fixed ? undefined : 'grid grid-cols-2 gap-3'}>
           <div className="space-y-1.5">
             <label htmlFor={ids.max} className="block text-sm font-medium text-zinc-700">
-              {exam ? 'Puntos' : 'Nota máxima'}
+              {fixed ? 'Puntos' : 'Nota máxima'}
             </label>
             <input id={ids.max} value={maxScore} onChange={(e) => setMaxScore(e.target.value)} inputMode="decimal" className={inputClass} />
           </div>
-          {!exam && (
+          {!fixed && (
             <div className="space-y-1.5">
               <label htmlFor={ids.weight} className="block text-sm font-medium text-zinc-700">
                 Peso en la unidad (%)
@@ -146,9 +146,11 @@ export function ColumnDialog({ open, onClose, courseId, unitId, item, remainingW
           )}
         </div>
         <p className="text-xs text-zinc-500">
-          {exam
-            ? 'La nota final suma Total + Parcial + Evaluación sobre 100: los puntos que no ocupan Parcial y Evaluación son los del Total.'
-            : `El total de la unidad suma nota ÷ máxima × peso de cada columna. Los pesos de todas las columnas deberían sumar ${unitPoints}%.`}
+          {fixed && item.kind === 'ATTENDANCE'
+            ? 'Asistencia cuenta dentro del Total: lo que queda del Total es para las actividades y demás columnas.'
+            : fixed
+              ? 'La nota final suma Total + Parcial + Evaluación sobre 100: los puntos que no ocupan Parcial y Evaluación son los del Total.'
+              : `El total de la unidad suma nota ÷ máxima × peso de cada columna. Los pesos de todas las columnas deberían sumar ${unitPoints}%.`}
         </p>
 
         {editing && (

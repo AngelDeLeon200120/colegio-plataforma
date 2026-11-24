@@ -56,7 +56,7 @@ class ReportCardRepository extends BaseRepository {
          JOIN courses c ON c.school_id = gi.school_id AND c.id = gi.course_id AND c.section_id = ?
          LEFT JOIN grade_scores gs ON gs.school_id = gi.school_id AND gs.grade_item_id = gi.id AND gs.student_id = ?
         WHERE gi.school_id = ? AND gi.academic_unit_id IN (${unitIds.map(() => '?').join(', ')})
-        ORDER BY FIELD(gi.kind, 'REGULAR', 'PARTIAL', 'EVALUATION'), gi.sort_order, gi.id`,
+        ORDER BY FIELD(gi.kind, 'ATTENDANCE', 'REGULAR', 'PARTIAL', 'EVALUATION'), gi.sort_order, gi.id`,
       [sectionId, studentId, this.schoolId, ...unitIds],
     );
     return rows.map((row) => ({

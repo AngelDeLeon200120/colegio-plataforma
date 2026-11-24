@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { AlertTriangle, ChevronRight, ClipboardList, Plus, Table2, Users, Video } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -10,6 +10,7 @@ import { MeetingList, meetingPhase } from '@/features/meetings/MeetingList';
 import { cn } from '@/lib/cn';
 import { ActivityFormDialog } from '../components/ActivityFormDialog';
 import { ActivityRow } from '../components/ActivityRow';
+import { useCourseReturn } from '../courseReturn';
 import { useTeacherActivities } from '../hooks';
 
 const TABS = [
@@ -48,6 +49,9 @@ export function CoursePage() {
   const meetings = useMeetings(courseId);
   useMeetingsLive();
 
+  const { search } = useLocation();
+  const scrollRef = useCourseReturn(courseId, search, Boolean(course && activities.data));
+
   const color = course?.color ?? '#1a73e8';
   const [section, subject] = course?.name.includes(' · ') ? course.name.split(' · ') : [null, course?.name];
   const upcomingMeetings = (meetings.data?.meetings ?? []).filter((meeting) => ['live', 'upcoming'].includes(meetingPhase(meeting)));
@@ -72,7 +76,7 @@ export function CoursePage() {
   }
 
   return (
-    <div className="w-full overflow-y-auto">
+    <div ref={scrollRef} className="w-full overflow-y-auto">
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         <nav className="mb-3 flex items-center gap-1 text-xs text-zinc-500" aria-label="Ruta">
           <Link to="/courses" className="hover:text-zinc-900">

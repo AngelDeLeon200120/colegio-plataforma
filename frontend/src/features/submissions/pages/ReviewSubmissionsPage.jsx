@@ -6,6 +6,7 @@ import { Kbd } from '@/components/ui/Kbd';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/format';
+import { useCourseReturnPath } from '@/features/activities/courseReturn';
 import { isUsingMocks } from '../api';
 import { useActivitySubmissions, useReviewSubmission, useSubmissionLiveUpdates } from '../hooks';
 import { SubmissionList } from '../components/SubmissionList';
@@ -18,6 +19,7 @@ function isTypingTarget(element) {
 }
 
 function PageHeader({ activity, summary }) {
+  const coursePath = useCourseReturnPath(activity?.courseId);
   if (!activity) {
     return (
       <div className="space-y-2 border-b border-zinc-200 bg-white px-6 py-4">
@@ -38,7 +40,7 @@ function PageHeader({ activity, summary }) {
           Mis cursos
         </Link>
         <ChevronRight className="size-3" />
-        <Link to={`/courses/${activity.courseId}`} className="hover:text-zinc-900">
+        <Link to={coursePath} className="hover:text-zinc-900">
           {activity.courseName}
         </Link>
       </nav>

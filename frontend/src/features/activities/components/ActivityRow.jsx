@@ -126,6 +126,7 @@ export function ActivityRow({ activity, onEdit }) {
 
   return (
     <li
+      data-activity-id={activity.id}
       className={cn(
         'relative flex items-center gap-x-3 px-4 py-3 sm:gap-x-4 first:rounded-t-lg last:rounded-b-lg',
         reviewPath && 'transition-colors hover:bg-zinc-50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-brand-600',

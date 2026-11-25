@@ -3,6 +3,7 @@ import { Ban, Copy, MoreVertical, Pencil, Video } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { longDate, timeFormat } from '@/features/calendar/model';
+import { copyText } from '@/lib/clipboard';
 import { cn } from '@/lib/cn';
 import { useCancelMeeting } from './hooks';
 
@@ -18,24 +19,22 @@ export function meetingPhase(meeting, now = Date.now()) {
   return 'upcoming';
 }
 
-function CodeBadge({ code }) {
-  const [copied, setCopied] = useState(false);
+export function CodeBadge({ code }) {
+  const [copied, setCopied] = useState(null); // true | false (no se pudo) | null
   useEffect(() => {
-    if (!copied) return undefined;
-    const timer = setTimeout(() => setCopied(false), 1500);
+    if (copied === null) return undefined;
+    const timer = setTimeout(() => setCopied(null), 2500);
     return () => clearTimeout(timer);
   }, [copied]);
   return (
     <button
       type="button"
-      onClick={() => {
-        navigator.clipboard?.writeText(code);
-        setCopied(true);
-      }}
+      onClick={async () => setCopied(await copyText(code))}
       className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2 py-1 font-mono text-xs font-semibold tracking-wider text-violet-800 hover:bg-violet-100"
       title="Copiar código"
     >
-      {code} <Copy className="size-3" /> {copied && <span className="font-sans font-medium tracking-normal">Copiado</span>}
+      {code} <Copy className="size-3" /> {copied === true && <span className="font-sans font-medium tracking-normal">Copiado</span>}
+      {copied === false && <span className="font-sans font-medium tracking-normal text-red-700">No se pudo copiar: escríbelo</span>}
     </button>
   );
 }
@@ -55,7 +54,7 @@ function MeetingRow({ meeting, focused, onEdit }) {
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: meeting.course.color ?? '#7c3aed' }} aria-hidden>
         <Video className="size-5" />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-3.25rem)]">
         <p className={cn('flex items-center gap-2 text-sm font-medium text-zinc-900', phase === 'cancelled' && 'line-through')}>
           <span className="truncate">{meeting.title}</span>
           {phase === 'live' && (
@@ -70,7 +69,9 @@ function MeetingRow({ meeting, focused, onEdit }) {
         </p>
         {meeting.description && <p className="mt-0.5 line-clamp-2 text-xs text-zinc-600">{meeting.description}</p>}
       </div>
-      <CodeBadge code={meeting.code} />
+      <span className="max-sm:ml-[3.25rem]">
+        <CodeBadge code={meeting.code} />
+      </span>
       {phase !== 'cancelled' && phase !== 'past' && (
         <a href={meeting.joinUrl} target="_blank" rel="noopener noreferrer">
           <Button variant={phase === 'live' ? 'primary' : 'secondary'} size="sm">

@@ -1,38 +1,80 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { AlertTriangle, KeyRound, Plus, Video } from 'lucide-react';
+import { AlertTriangle, ExternalLink, KeyRound, Plus, Video, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useMyCourses } from '@/features/gradebook/hooks';
 import { cn } from '@/lib/cn';
 import { useFindByCode, useMeetings, useMeetingsLive } from './hooks';
 import { MeetingDialog } from './MeetingDialog';
-import { MeetingList, meetingPhase } from './MeetingList';
+import { CodeBadge, MeetingList, meetingPhase } from './MeetingList';
+import { longDate, timeFormat } from '@/features/calendar/model';
 
 const TABS = [
   { id: 'upcoming', label: 'Próximas' },
   { id: 'past', label: 'Anteriores' },
 ];
 
+// Guiones "raros" (los que ponen WhatsApp, Word o el teléfono) y espacios: no forman parte del código
+const DASHES = /[‐-―−﹣－]/g;
+
+/** Lo que se pegó o escribió → el código. De "Código MAT-3ROB-S8YPCZ" toma solo el código. */
+export function normalizeCode(text) {
+  const clean = String(text ?? '').normalize('NFKC').replace(DASHES, '-').toUpperCase();
+  const match = clean.match(/[A-Z0-9]{2,6}-[A-Z0-9]{2,6}-[A-Z0-9]{4,8}/);
+  return (match ? match[0] : clean.replace(/[^A-Z0-9-]/g, '')).slice(0, 20);
+}
+
+/** La reunión encontrada: se abre con un clic en su botón (el navegador no bloquea esa pestaña). */
+function FoundMeeting({ meeting, onClose }) {
+  const phase = meetingPhase(meeting);
+  return (
+    <div className="order-last flex basis-full flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-zinc-900">{meeting.title}</p>
+        <p className="text-xs text-zinc-600">
+          {meeting.course.name} · {longDate.format(new Date(meeting.startsAt))} · {timeFormat.format(new Date(meeting.startsAt))}
+          {phase === 'past' && ' · ya terminó'}
+          {phase === 'cancelled' && ' · cancelada'}
+        </p>
+      </div>
+      <CodeBadge code={meeting.code} />
+      {phase !== 'cancelled' && (
+        <a
+          href={meeting.joinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          <ExternalLink className="size-4" /> Abrir reunión
+        </a>
+      )}
+      <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-full p-1 text-zinc-500 hover:bg-white">
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
+
 function JoinByCode() {
   const [code, setCode] = useState('');
+  const [found, setFound] = useState(null);
   const find = useFindByCode();
   const join = (event) => {
     event.preventDefault();
-    if (code.trim().length < 4) return;
-    // La pestaña se abre antes de la consulta para que el navegador no la bloquee
-    const tab = window.open('about:blank', '_blank');
-    find.mutate(code, {
-      onSuccess: (meeting) => {
-        if (tab) {
-          tab.opener = null;
-          tab.location.replace(meeting.joinUrl);
-        }
-        setCode('');
-      },
-      onError: () => tab?.close(),
-    });
+    if (code.length < 4) return;
+    setFound(null);
+    find.mutate(code, { onSuccess: setFound });
   };
+  return (
+    <>
+      <JoinForm code={code} setCode={setCode} find={find} join={join} />
+      {found && <FoundMeeting meeting={found} onClose={() => setFound(null)} />}
+    </>
+  );
+}
+
+function JoinForm({ code, setCode, find, join }) {
   return (
     <form onSubmit={join} className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
@@ -40,14 +82,26 @@ function JoinByCode() {
           <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
           <input
             value={code}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
+            onChange={(event) => {
+              find.reset();
+              setCode(normalizeCode(event.target.value));
+            }}
+            onPaste={(event) => {
+              // Lo pegado (aunque traiga más texto) se reduce al código; si llega vacío, el navegador pega como siempre
+              const pasted = event.clipboardData?.getData('text') ?? '';
+              if (!pasted.trim()) return;
+              event.preventDefault();
+              find.reset();
+              setCode(normalizeCode(pasted));
+            }}
             placeholder="Escribe un código"
             aria-label="Código de reunión"
-            maxLength={20}
+            autoComplete="off"
+            spellCheck={false}
             className="h-9 w-52 rounded-full border border-zinc-300 bg-white pr-3 pl-9 font-mono text-sm tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case focus:border-brand-600 focus:ring-2 focus:ring-brand-100 focus:outline-none"
           />
         </label>
-        <Button type="submit" disabled={code.trim().length < 4} loading={find.isPending}>
+        <Button type="submit" disabled={code.length < 4} loading={find.isPending}>
           Unirse
         </Button>
       </div>

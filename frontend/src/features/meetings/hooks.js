@@ -5,7 +5,7 @@ import { getSocket } from '@/lib/socket';
 
 export const meetingsApi = {
   list: ({ courseId } = {}) => api(`/meetings${courseId ? `?courseId=${courseId}` : ''}`),
-  byCode: (code) => api(`/meetings/by-code/${encodeURIComponent(code.trim())}`),
+  byCode: (code) => api(`/meetings/by-code/${encodeURIComponent(code)}`),
   create: (courseId, body) => api(`/courses/${courseId}/meetings`, { method: 'POST', body }),
   update: (meetingId, body) => api(`/meetings/${meetingId}`, { method: 'PATCH', body }),
   cancel: (meetingId) => api(`/meetings/${meetingId}/cancel`, { method: 'POST' }),

@@ -260,7 +260,7 @@ Una publicación nueva crea una notificación `POST` para toda la comunidad acti
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/meetings?courseId=&from=&to=` | todos | Reuniones de las clases que ve la persona → `{ meetings[] (con code, joinUrl, canManage), canSchedule }` |
-| GET | `/meetings/by-code/:code` | todos | Busca por código entre las reuniones visibles (`404` si no es de sus clases) |
+| GET | `/meetings/by-code/:code` | todos | Busca por código en todo el colegio: quien tiene el código puede unirse aunque no sea de sus clases (`404` si no existe). Nunca cruza a otro colegio |
 | POST | `/courses/:id/meetings` | T*, A | `{ title, startsAt, durationMinutes?, provider: JITSI | EXTERNAL, externalUrl?, description? }`. Genera un **código único por reunión** (`MAT-3ROB-K7Q2X9`) |
 | PATCH | `/meetings/:id` | T*, A | Edita (no si está cancelada) |
 | POST | `/meetings/:id/cancel` | T*, A | Cancela y avisa |

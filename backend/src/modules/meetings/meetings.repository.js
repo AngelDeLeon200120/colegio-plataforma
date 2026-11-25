@@ -82,13 +82,12 @@ class MeetingsRepository extends BaseRepository {
     return row && toMeeting(row);
   }
 
-  async findVisibleByCode(user, code) {
-    const visible = courseVisibility(user);
-    const row = await this.one(`SELECT ${MEETING_COLUMNS} ${MEETING_JOINS} WHERE m.school_id = ? AND m.code = ? AND ${visible.sql}`, [
-      this.schoolId,
-      code,
-      ...visible.params,
-    ]);
+  /**
+   * Por código, en todo el colegio: quien tiene el código puede unirse aunque no sea de sus clases
+   * (otro docente, un invitado de la comunidad escolar). Nunca cruza a otro colegio.
+   */
+  async findByCode(code) {
+    const row = await this.one(`SELECT ${MEETING_COLUMNS} ${MEETING_JOINS} WHERE m.school_id = ? AND m.code = ?`, [this.schoolId, code]);
     return row && toMeeting(row);
   }
 

@@ -109,8 +109,8 @@ export const meetingsService = {
   async findByCode(user, code) {
     // Mismo arreglo que la página: guiones de otros teclados y espacios no cuentan
     const clean = code.normalize('NFKC').replace(/[‐-―−﹣－]/g, '-').replace(/\s+/g, '').toUpperCase();
-    const meeting = await meetingsRepository.findVisibleByCode(user, clean);
-    if (!meeting) throw AppError.notFound('No hay ninguna reunión de tus clases con ese código');
+    const meeting = await meetingsRepository.findByCode(clean);
+    if (!meeting) throw AppError.notFound('No hay ninguna reunión con ese código. Revisa que esté completo.');
     return present(user, meeting, await meetingsRepository.findSchoolSlug());
   },
 

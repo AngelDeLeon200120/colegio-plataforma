@@ -119,7 +119,9 @@ export function MeetingsPage() {
   const { data, isLoading, isError, error } = useMeetings();
   useMeetingsLive();
   const canSchedule = Boolean(data?.canSchedule);
-  const { data: courses = [] } = useMyCourses({ enabled: canSchedule });
+  const { data: courses = [], isSuccess: coursesLoaded } = useMyCourses({ enabled: canSchedule });
+  // Un docente sin cursos no tiene a qué clase programarle: se le explica en lugar de dejar el botón apagado sin razón
+  const noCourses = canSchedule && coursesLoaded && courses.length === 0;
 
   const all = data?.meetings ?? [];
   const classes = [...new Map(all.map((meeting) => [meeting.course.id, meeting.course])).values()];
@@ -145,6 +147,11 @@ export function MeetingsPage() {
             </Button>
           )}
         </div>
+        {noCourses && (
+          <p className="basis-full rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+            Para programar reuniones necesitas un curso asignado. Pide a la administración que te asigne uno en Estructura académica.
+          </p>
+        )}
       </header>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -200,7 +207,13 @@ export function MeetingsPage() {
             meetings={shown}
             focusId={focusId}
             onEdit={(meeting) => setDialog({ meeting })}
-            emptyText={tab === 'upcoming' ? 'No hay reuniones programadas.' : 'Aún no hay reuniones anteriores.'}
+            emptyText={
+              tab !== 'upcoming'
+                ? 'Aún no hay reuniones anteriores.'
+                : noCourses
+                  ? 'No tienes clases asignadas. Si te pasan un código, escríbelo arriba para unirte.'
+                  : 'No hay reuniones programadas.'
+            }
           />
         )}
       </div>

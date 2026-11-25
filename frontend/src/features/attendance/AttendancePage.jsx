@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useSearchParams } from 'react-router';
-import { AlertTriangle, CalendarPlus, CheckCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCheck, Clock, MessageSquare, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { FormError } from '@/components/ui/Field';
@@ -10,7 +10,7 @@ import { useMyCourses } from '@/features/gradebook/hooks';
 import { cn } from '@/lib/cn';
 import { formatDate, formatScore } from '@/lib/format';
 import { useAttendanceSheet, useRemoveAttendance, useSaveAttendance } from './hooks';
-import { ABSENT, PRESENT, cellKey, changedDates, effectiveStatus, statusOf, summarize, toDays } from './model';
+import { ABSENT, MAX_NOTE, PRESENT, cellKey, changedDates, effectiveStatus, noteOf, summarize, toDays, withChange } from './model';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const longDate = (date) => formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -46,26 +46,26 @@ function RemoveDayDialog({ date, courseId, onClose, onRemoved }) {
   );
 }
 
-/** Hoja de asistencia: una fila por estudiante y una columna por día con su check (vino) o equis (faltó). */
+/** Hoja de asistencia: una fila por estudiante y una columna por día, con check o equis y una nota opcional. */
 function AttendanceSheet({ sheet, courseId }) {
-  const [changes, setChanges] = useState({}); // "fecha:estudiante" → estado sin guardar
-  const [extraDates, setExtraDates] = useState([]);
+  const [changes, setChanges] = useState({}); // "fecha:estudiante" → { status?, note? } sin guardar
   const [active, setActive] = useState({ row: 0, date: sheet.today });
   const [notice, setNotice] = useState(null);
   const [removing, setRemoving] = useState(false);
   const save = useSaveAttendance(courseId);
   const gridRef = useRef(null);
+  const noteRef = useRef(null);
 
   const { students } = sheet;
-  // Hoy siempre está en la hoja, aunque todavía no se haya pasado lista
-  const dates = useMemo(() => [...new Set([...Object.keys(sheet.days), ...extraDates, sheet.today])].sort(), [sheet.days, sheet.today, extraDates]);
+  // El día de hoy entra solo, aunque todavía no se haya pasado lista
+  const dates = useMemo(() => [...new Set([...Object.keys(sheet.days), sheet.today])].sort(), [sheet.days, sheet.today]);
   const touched = changedDates(changes);
   const dirty = touched.size > 0;
   const activeDate = dates.includes(active.date) ? active.date : sheet.today;
   const activeRow = clamp(active.row, 0, students.length - 1);
   const activeSaved = Boolean(sheet.days[activeDate]);
 
-  // Al abrir y al agregar un día, la columna activa queda a la vista
+  // La celda activa queda a la vista (al abrir, la de hoy)
   useEffect(() => {
     gridRef.current?.querySelector(`[data-cell="${activeRow}:${activeDate}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [activeRow, activeDate]);
@@ -80,23 +80,20 @@ function AttendanceSheet({ sheet, courseId }) {
   // Salir a otra sección o cambiar de curso con marcas sin guardar pide confirmación
   const blocker = useBlocker(dirty);
 
-  const setStatus = (date, studentId, status) => {
+  const change = (date, studentId, patch) => {
     setNotice(null);
-    setChanges((current) => {
-      const next = { ...current, [cellKey(date, studentId)]: status };
-      // Volver a lo guardado (o quitar el check de un día nuevo) no es un cambio
-      if ((sheet.days[date]?.[studentId] ?? (sheet.days[date] ? null : ABSENT)) === status) delete next[cellKey(date, studentId)];
-      return next;
-    });
+    setChanges((current) => withChange(sheet, current, date, studentId, patch));
   };
-  const togglePresent = (date, studentId) => setStatus(date, studentId, statusOf(sheet, changes, date, studentId) === PRESENT ? ABSENT : PRESENT);
-  const markAll = () => students.forEach((student) => setStatus(activeDate, student.id, PRESENT));
+  const togglePresent = (date, studentId) =>
+    change(date, studentId, { status: effectiveStatus(sheet, changes, touched, date, studentId) === PRESENT ? ABSENT : PRESENT });
+  const markAll = () => students.forEach((student) => change(activeDate, student.id, { status: PRESENT }));
 
-  const addDate = (date) => {
-    if (!date || date > sheet.today || date < sheet.unit.startsOn) return;
-    setExtraDates((current) => (current.includes(date) ? current : [...current, date]));
-    setActive({ row: 0, date });
-  };
+  const activeStudent = students[activeRow];
+  const activeStatus = activeStudent && effectiveStatus(sheet, changes, touched, activeDate, activeStudent.id);
+  const activeNote = activeStudent ? noteOf(sheet, changes, activeDate, activeStudent.id) : '';
+  // Una nota en una celda sin marcar (p. ej. "Llegó tarde") cuenta como que asistió
+  const setNote = (note) => change(activeDate, activeStudent.id, activeStatus || !note ? { note } : { note, status: PRESENT });
+  const arrivedLate = () => change(activeDate, activeStudent.id, { status: PRESENT, note: 'Llegó tarde' });
 
   const onSave = () =>
     save.mutate(toDays(sheet, changes), {
@@ -116,7 +113,10 @@ function AttendanceSheet({ sheet, courseId }) {
       setActive({ row: clamp(activeRow + move[0], 0, students.length - 1), date: dates[clamp(col + move[1], 0, dates.length - 1)] });
     } else if (event.key === ' ' || event.key.toLowerCase() === 'x') {
       event.preventDefault();
-      togglePresent(activeDate, students[activeRow].id);
+      togglePresent(activeDate, activeStudent.id);
+    } else if (event.key.toLowerCase() === 'n') {
+      event.preventDefault();
+      noteRef.current?.focus();
     }
   };
 
@@ -126,26 +126,20 @@ function AttendanceSheet({ sheet, courseId }) {
     gridRef.current?.focus({ preventScroll: true });
   };
 
+  /** Escribir la nota de una celda sin cambiar su marca. */
+  const openNote = (row, date) => {
+    setActive({ row, date });
+    noteRef.current?.focus();
+  };
+
   if (!students.length) return <p className="py-10 text-center text-sm text-zinc-500">No hay estudiantes inscritos en esta sección.</p>;
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2 sm:px-6">
-        <label className="flex items-center gap-2 text-sm text-zinc-600">
-          <CalendarPlus className="size-4" /> Agregar día
-          <input
-            type="date"
-            value=""
-            min={sheet.unit.startsOn}
-            max={sheet.today}
-            onChange={(event) => addDate(event.target.value)}
-            aria-label="Agregar día"
-            className={inputClass}
-          />
-        </label>
         <span className="text-sm font-medium text-zinc-900 first-letter:uppercase">{longDate(activeDate)}</span>
         <Button size="sm" onClick={markAll}>
-          <CheckCheck className="size-4" /> Todos vinieron
+          <CheckCheck className="size-4" /> Todos asistieron
         </Button>
         {activeSaved && (
           <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} disabled={save.isPending || dirty} title={dirty ? 'Guarda primero los cambios' : undefined}>
@@ -170,6 +164,31 @@ function AttendanceSheet({ sheet, courseId }) {
         </div>
       </div>
 
+      {/* Barra de la celda activa, como la de fórmulas de una hoja de cálculo */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-1.5 sm:px-6">
+        <span className="max-w-56 truncate text-sm font-medium text-zinc-900">
+          {activeStudent.lastName}, {activeStudent.firstName}
+        </span>
+        <span className="text-xs text-zinc-500">{formatDate(activeDate, { day: 'numeric', month: 'short' })}</span>
+        <input
+          ref={noteRef}
+          value={activeNote}
+          maxLength={MAX_NOTE}
+          onChange={(event) => setNote(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== 'Escape') return;
+            event.preventDefault();
+            gridRef.current?.focus({ preventScroll: true });
+          }}
+          placeholder="Nota de este día, ej. Llegó tarde"
+          aria-label={`Nota de ${activeStudent.firstName} ${activeStudent.lastName}`}
+          className={cn(inputClass, 'h-8 min-w-40 flex-1')}
+        />
+        <Button size="sm" onClick={arrivedLate} title="Marca que asistió y anota que llegó tarde">
+          <Clock className="size-3.5" /> Llegó tarde
+        </Button>
+      </div>
+
       <div
         ref={gridRef}
         tabIndex={0}
@@ -189,7 +208,7 @@ function AttendanceSheet({ sheet, courseId }) {
               {dates.map((date) => (
                 <DayHeader key={date} date={date} today={sheet.today} active={date === activeDate} changed={touched.has(date)} onSelect={() => setActive({ row: activeRow, date })} />
               ))}
-              <th className={cn(CELL, HEAD, 'min-w-16 bg-white px-2 text-center text-xs font-bold')}>Vino</th>
+              <th className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}>Asistencia</th>
               <th className={cn(CELL, HEAD, 'min-w-14 bg-white px-2 text-center text-xs font-bold')}>%</th>
               <th className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}>
                 Nota<span className="block text-[10px] font-normal text-zinc-500">/{formatScore(sheet.maxScore)}</span>
@@ -221,9 +240,11 @@ function AttendanceSheet({ sheet, courseId }) {
                         id={`${row}:${date}`}
                         status={status}
                         active={isActive}
+                        note={noteOf(sheet, changes, date, student.id)}
                         changed={cellKey(date, student.id) in changes}
                         label={`${name}, ${formatDate(date, { day: 'numeric', month: 'long' })}`}
                         onClick={() => onCell(row, date)}
+                        onNote={() => openNote(row, date)}
                       />
                     );
                   })}
@@ -243,7 +264,7 @@ function AttendanceSheet({ sheet, courseId }) {
             <tr>
               <td className={cn(CELL, 'sticky -left-4 z-10 bg-zinc-100 sm:-left-6')} />
               <th scope="row" className={cn(CELL, 'sticky left-7 z-10 bg-zinc-100 px-2 py-1 text-right text-xs font-semibold text-zinc-600 sm:left-5')}>
-                Vinieron
+                Asistencia
               </th>
               {dates.map((date) => {
                 const count = students.filter((student) => effectiveStatus(sheet, changes, touched, date, student.id) === PRESENT).length;
@@ -261,13 +282,16 @@ function AttendanceSheet({ sheet, courseId }) {
 
       <footer className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-200 bg-white px-4 py-1.5 text-[11px] text-zinc-500 sm:px-6">
         <span className="flex items-center gap-1">
-          <span className="font-bold text-emerald-700">✓</span> vino
+          <span className="font-bold text-emerald-700">✓</span> asistió
         </span>
         <span className="flex items-center gap-1">
           <span className="font-bold text-red-600">✗</span> faltó
         </span>
+        <span className="flex items-center gap-1">
+          <MessageSquare className="size-3 fill-amber-300 text-amber-600" /> tiene nota
+        </span>
         <span className="max-lg:hidden">
-          Flechas para moverte · <Kbd>Espacio</Kbd> marcar
+          Flechas para moverte · <Kbd>Espacio</Kbd> marcar · <Kbd>N</Kbd> nota
         </span>
         <span className="ml-auto">
           {Math.round(sheet.goodAttendance * 100)}% o más = {formatScore(sheet.maxScore)} puntos
@@ -280,7 +304,6 @@ function AttendanceSheet({ sheet, courseId }) {
           courseId={courseId}
           onClose={() => setRemoving(false)}
           onRemoved={() => {
-            setExtraDates((current) => current.filter((date) => date !== activeDate));
             setNotice(null);
             setRemoving(false);
           }}
@@ -322,27 +345,44 @@ function DayHeader({ date, today, active, changed, onSelect }) {
 }
 
 const MARKS = {
-  [PRESENT]: { text: '✓', label: 'vino', className: 'text-emerald-700' },
+  [PRESENT]: { text: '✓', label: 'asistió', className: 'text-emerald-700' },
   [ABSENT]: { text: '✗', label: 'faltó', className: 'text-red-600' },
 };
 
-function DayCell({ id, status, active, changed, label, onClick }) {
+function DayCell({ id, status, note, active, changed, label, onClick, onNote }) {
   const mark = MARKS[status];
   return (
     <td
       data-cell={id}
       role="gridcell"
       onClick={onClick}
-      aria-label={`${label}: ${mark?.label ?? 'sin marcar'}`}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onNote();
+      }}
+      title={note || undefined}
+      aria-label={`${label}: ${mark?.label ?? 'sin marcar'}${note ? `. Nota: ${note}` : ''}`}
       className={cn(
         CELL,
-        'h-8 cursor-pointer text-center text-base font-bold select-none hover:bg-emerald-50',
+        'group relative h-8 cursor-pointer text-center text-base font-bold select-none hover:bg-emerald-50',
         mark?.className,
         changed && 'bg-amber-50',
         active && 'shadow-[inset_0_0_0_2px_var(--color-blue-500)]',
       )}
     >
       {mark?.text}
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={(event) => {
+          event.stopPropagation();
+          onNote();
+        }}
+        aria-label={`${note ? 'Ver la nota' : 'Poner nota'} de ${label}`}
+        className={cn('absolute inset-y-0 right-0 flex w-5 items-center justify-center', !note && !active && 'opacity-0 group-hover:opacity-100')}
+      >
+        <MessageSquare className={cn('size-3', note ? 'fill-amber-300 text-amber-600' : 'text-zinc-400')} />
+      </button>
     </td>
   );
 }
@@ -353,7 +393,15 @@ export function AttendancePage() {
   const { data: courses, isLoading: loadingCourses, isError: coursesFailed, error: coursesError } = useMyCourses();
   const requested = searchParams.get('course');
   const course = courses?.find((item) => String(item.id) === requested) ?? courses?.[0];
-  const { data: sheet, isLoading, isError, error } = useAttendanceSheet(course?.id);
+  const { data: sheet, isLoading, isError, error, refetch } = useAttendanceSheet(course?.id);
+
+  // Si la página se queda abierta hasta otro día, al volver a ella entra la columna del nuevo hoy
+  useEffect(() => {
+    const opened = new Date().toDateString();
+    const onVisible = () => document.visibilityState === 'visible' && new Date().toDateString() !== opened && refetch();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refetch]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

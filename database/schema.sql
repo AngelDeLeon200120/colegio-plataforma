@@ -1022,6 +1022,7 @@ CREATE TABLE IF NOT EXISTS attendance_records (
   student_id        BIGINT UNSIGNED NOT NULL,
   attended_on       DATE            NOT NULL,
   status            ENUM('PRESENT','ABSENT','EXCUSED') NOT NULL COMMENT 'EXCUSED: falta justificada, no cuenta',
+  note              VARCHAR(200)    NULL COMMENT 'Ej. Llegó tarde',
   marked_by         BIGINT UNSIGNED NOT NULL,
   created_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

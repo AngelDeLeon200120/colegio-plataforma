@@ -15,13 +15,13 @@ class AttendanceRepository extends BaseRepository {
   /** Todas las marcas de la unidad, día por día. */
   async listUnit(courseId, unitId) {
     const rows = await this.query(
-      `SELECT DATE_FORMAT(attended_on, '%Y-%m-%d') AS day, student_id, status
+      `SELECT DATE_FORMAT(attended_on, '%Y-%m-%d') AS day, student_id, status, note
          FROM attendance_records
         WHERE school_id = ? AND course_id = ? AND academic_unit_id = ?
         ORDER BY attended_on`,
       [this.schoolId, courseId, unitId],
     );
-    return rows.map((row) => ({ date: row.day, studentId: row.student_id, status: row.status }));
+    return rows.map((row) => ({ date: row.day, studentId: row.student_id, status: row.status, note: row.note }));
   }
 
   async listDayStudentIds(courseId, unitId, date) {
@@ -46,10 +46,10 @@ class AttendanceRepository extends BaseRepository {
 
   async upsertDay({ courseId, unitId, date, entries, markedBy }) {
     await this.query(
-      `INSERT INTO attendance_records (school_id, course_id, academic_unit_id, student_id, attended_on, status, marked_by)
-       VALUES ${entries.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')} AS incoming
-       ON DUPLICATE KEY UPDATE status = incoming.status, marked_by = incoming.marked_by`,
-      entries.flatMap(({ studentId, status }) => [this.schoolId, courseId, unitId, studentId, date, status, markedBy]),
+      `INSERT INTO attendance_records (school_id, course_id, academic_unit_id, student_id, attended_on, status, note, marked_by)
+       VALUES ${entries.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')} AS incoming
+       ON DUPLICATE KEY UPDATE status = incoming.status, note = incoming.note, marked_by = incoming.marked_by`,
+      entries.flatMap(({ studentId, status, note }) => [this.schoolId, courseId, unitId, studentId, date, status, note ?? null, markedBy]),
     );
   }
 

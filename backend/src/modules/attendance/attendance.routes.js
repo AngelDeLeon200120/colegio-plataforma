@@ -15,7 +15,19 @@ const removeQuery = z.object({ date });
 const day = z.object({
   date,
   entries: z
-    .array(z.object({ studentId: id, status: z.enum(['PRESENT', 'ABSENT', 'EXCUSED']) }))
+    .array(
+      z.object({
+        studentId: id,
+        status: z.enum(['PRESENT', 'ABSENT', 'EXCUSED']),
+        note: z
+          .string()
+          .trim()
+          .max(200, 'La nota puede tener hasta 200 caracteres')
+          .nullable()
+          .optional()
+          .transform((value) => value || null),
+      }),
+    )
     .min(1)
     .max(500)
     .refine((entries) => new Set(entries.map((entry) => entry.studentId)).size === entries.length, 'Hay estudiantes repetidos'),

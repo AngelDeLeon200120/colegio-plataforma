@@ -44,7 +44,11 @@ async function buildSheet({ course, unit, today }) {
   );
 
   const days = {}; // fecha → { studentId: status }
-  for (const { date, studentId, status } of records) (days[date] ??= {})[studentId] = status;
+  const notes = {}; // fecha → { studentId: nota }
+  for (const { date, studentId, status, note } of records) {
+    (days[date] ??= {})[studentId] = status;
+    if (note) (notes[date] ??= {})[studentId] = note;
+  }
 
   return {
     course: { id: course.id, name: course.name },
@@ -54,6 +58,7 @@ async function buildSheet({ course, unit, today }) {
     maxScore,
     students,
     days,
+    notes,
     adjusted,
   };
 }

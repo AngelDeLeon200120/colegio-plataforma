@@ -58,8 +58,13 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
       open
       onClose={onClose}
       title={editing ? 'Editar reunión' : 'Programar reunión virtual'}
-      description={editing ? `Código ${meeting.code} · se avisará a la clase del cambio.` : 'Se genera un código único para esta clase y se avisa a estudiantes y familias.'}
-      className="max-w-lg"
+      description={
+        editing
+          ? `Código ${meeting.code} · se avisará a la clase del cambio.`
+          : 'Se genera un código único para esta clase y se avisa a estudiantes y familias.'
+      }
+      // Ancha y en dos columnas: cabe entera en la pantalla de una laptop, sin barra de desplazamiento
+      className="max-w-2xl"
       footer={
         <>
           {showProblems && problems.length > 0 && (
@@ -76,22 +81,34 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
         </>
       }
     >
-      <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
+      <form onSubmit={(event) => event.preventDefault()} className="space-y-3">
         <FormError error={mutation.error} />
-        <Field label="Clase">
-          {(id) => (
-            <select id={id} value={effectiveCourseId} onChange={(e) => setCourseId(e.target.value)} disabled={editing} className={inputClass}>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </Field>
-        <Field label="Título">
-          {(id) => <input id={id} data-autofocus value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} className={inputClass} placeholder="Ej. Repaso para el examen" />}
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Clase">
+            {(id) => (
+              <select id={id} value={effectiveCourseId} onChange={(e) => setCourseId(e.target.value)} disabled={editing} className={inputClass}>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label="Título">
+            {(id) => (
+              <input
+                id={id}
+                data-autofocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={150}
+                className={inputClass}
+                placeholder="Ej. Repaso para el examen"
+              />
+            )}
+          </Field>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Fecha y hora">
             {(id) => <input id={id} type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className={inputClass} />}
@@ -99,11 +116,13 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
           <Field label="Duración">
             {(id) => (
               <select id={id} value={duration} onChange={(e) => setDuration(e.target.value)} className={inputClass}>
-                {[...new Set([...DURATIONS, Number(duration)])].sort((a, b) => a - b).map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {minutes < 60 ? `${minutes} minutos` : `${minutes / 60} hora${minutes === 60 ? '' : 's'}`}
-                  </option>
-                ))}
+                {[...new Set([...DURATIONS, Number(duration)])]
+                  .sort((a, b) => a - b)
+                  .map((minutes) => (
+                    <option key={minutes} value={minutes}>
+                      {minutes < 60 ? `${minutes} minutos` : `${minutes / 60} hora${minutes === 60 ? '' : 's'}`}
+                    </option>
+                  ))}
               </select>
             )}
           </Field>
@@ -111,7 +130,7 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
 
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium text-zinc-700">Sala</legend>
-          <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <label className="flex items-start gap-2 text-sm text-zinc-700">
               <input type="radio" name="provider" checked={provider === 'JITSI'} onChange={() => setProvider('JITSI')} className="mt-0.5 accent-brand-600" />
               <span>
@@ -120,7 +139,13 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
               </span>
             </label>
             <label className="flex items-start gap-2 text-sm text-zinc-700">
-              <input type="radio" name="provider" checked={provider === 'EXTERNAL'} onChange={() => setProvider('EXTERNAL')} className="mt-0.5 accent-brand-600" />
+              <input
+                type="radio"
+                name="provider"
+                checked={provider === 'EXTERNAL'}
+                onChange={() => setProvider('EXTERNAL')}
+                className="mt-0.5 accent-brand-600"
+              />
               <span>Enlace propio (Google Meet, Zoom, Teams)</span>
             </label>
             {provider === 'EXTERNAL' && (
@@ -129,7 +154,7 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
                 onChange={(e) => setExternalUrl(e.target.value)}
                 placeholder="https://meet.google.com/…"
                 aria-label="Enlace de la reunión"
-                className={inputClass}
+                className={`${inputClass} sm:col-span-2`}
               />
             )}
           </div>
@@ -141,7 +166,7 @@ export function MeetingDialog({ meeting, courses, defaultCourseId, onClose, onSa
               id={id}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              rows={2}
               maxLength={1000}
               className="block w-full resize-y rounded-md border border-zinc-200 px-3 py-2 text-sm shadow-xs focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 focus:outline-none"
             />

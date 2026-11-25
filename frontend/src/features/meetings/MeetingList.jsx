@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Ban, Copy, MoreVertical, Pencil, Video } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -39,9 +40,80 @@ export function CodeBadge({ code }) {
   );
 }
 
+const MENU_WIDTH = 176;
+const MENU_HEIGHT = 88;
+
+/**
+ * Menú de opciones flotante: se dibuja sobre la página (no dentro de la lista), así no estira el contenedor
+ * ni hace aparecer una barra de desplazamiento. Si no cabe abajo, se abre hacia arriba.
+ */
+function OptionsMenu({ label, children }) {
+  const [position, setPosition] = useState(null); // { top, left } en la ventana
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const close = () => setPosition(null);
+
+  const toggle = () => {
+    if (position) return close();
+    const rect = buttonRef.current.getBoundingClientRect();
+    const below = rect.bottom + 4 + MENU_HEIGHT <= window.innerHeight;
+    setPosition({
+      top: below ? rect.bottom + 4 : Math.max(8, rect.top - 4 - MENU_HEIGHT),
+      left: Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
+    });
+  };
+
+  // Se cierra al hacer clic fuera, con Escape, o si la página se desplaza o cambia de tamaño
+  useEffect(() => {
+    if (!position) return undefined;
+    const onPointerDown = (event) => {
+      if (!menuRef.current?.contains(event.target) && !buttonRef.current?.contains(event.target)) close();
+    };
+    const onKeyDown = (event) => event.key === 'Escape' && close();
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [position]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={toggle}
+        className="flex size-8 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(position)}
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      {position &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            style={{ top: position.top, left: position.left, width: MENU_WIDTH }}
+            className="fixed z-50 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+            onClick={close}
+          >
+            {children}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 function MeetingRow({ meeting, focused, onEdit }) {
   const cancel = useCancelMeeting();
-  const [menuOpen, setMenuOpen] = useState(false);
   const phase = meetingPhase(meeting);
   const start = new Date(meeting.startsAt);
   const end = new Date(meeting.endsAt);
@@ -80,43 +152,21 @@ function MeetingRow({ meeting, focused, onEdit }) {
         </a>
       )}
       {meeting.canManage && phase !== 'cancelled' && (
-        <div className="relative">
+        <OptionsMenu label="Opciones de la reunión">
+          <button type="button" role="menuitem" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-50" onClick={() => onEdit(meeting)}>
+            <Pencil className="size-4" /> Editar
+          </button>
           <button
             type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            className="flex size-8 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100"
-            aria-label="Opciones de la reunión"
-            aria-expanded={menuOpen}
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+            onClick={() => {
+              if (window.confirm(`¿Cancelar «${meeting.title}»? Se avisará a la clase.`)) cancel.mutate(meeting.id);
+            }}
           >
-            <MoreVertical className="size-4" />
+            <Ban className="size-4" /> Cancelar reunión
           </button>
-          {menuOpen && (
-            <div className="absolute right-0 z-10 mt-1 w-44 overflow-hidden rounded-md border border-zinc-200 bg-white py-1 shadow-lg" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-50"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onEdit(meeting);
-                }}
-              >
-                <Pencil className="size-4" /> Editar
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                onClick={() => {
-                  setMenuOpen(false);
-                  if (window.confirm(`¿Cancelar «${meeting.title}»? Se avisará a la clase.`)) cancel.mutate(meeting.id);
-                }}
-              >
-                <Ban className="size-4" /> Cancelar reunión
-              </button>
-            </div>
-          )}
-        </div>
+        </OptionsMenu>
       )}
     </li>
   );

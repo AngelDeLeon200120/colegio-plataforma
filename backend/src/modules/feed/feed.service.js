@@ -28,9 +28,12 @@ async function loadPost(user, postId) {
   return post;
 }
 
+/** Con los comentarios desactivados no se muestran (quedan guardados por si se vuelven a activar). */
 async function withComments(posts) {
-  const comments = await feedRepository.listRecentComments(posts.map((post) => post.id));
-  return posts.map((post) => ({ ...post, comments: comments.filter((comment) => comment.postId === post.id) }));
+  const comments = await feedRepository.listRecentComments(posts.filter((post) => post.commentsEnabled).map((post) => post.id));
+  return posts.map((post) =>
+    post.commentsEnabled ? { ...post, comments: comments.filter((comment) => comment.postId === post.id) } : { ...post, commentCount: 0, comments: [] },
+  );
 }
 
 export const feedService = {
@@ -47,7 +50,7 @@ export const feedService = {
     };
   },
 
-  async create(user, { body, isPinned }, image) {
+  async create(user, { body, isPinned, commentsEnabled }, image) {
     if (image && !matchesSignature(image)) {
       throw new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', 'La imagen no es válida. Usa JPG, PNG, GIF o WEBP.');
     }
@@ -56,7 +59,7 @@ export const feedService = {
 
     const id = await withTransaction(async (connection, afterCommit) => {
       const repo = feedRepository.withConnection(connection);
-      const postId = await repo.insertPost({ authorId: user.id, body, imageFileId, isPinned });
+      const postId = await repo.insertPost({ authorId: user.id, body, imageFileId, isPinned, commentsEnabled });
 
       // Aviso a toda la comunidad (menos quien publica). Fijada = prioridad alta.
       const recipients = await repo.findAudienceUserIds(user.id);
@@ -125,13 +128,14 @@ export const feedService = {
   },
 
   async comments(user, postId) {
-    await loadPost(user, postId);
-    return feedRepository.listComments(postId);
+    const post = await loadPost(user, postId);
+    return post.commentsEnabled ? feedRepository.listComments(postId) : [];
   },
 
   /** Avisa a quien publicó y a quienes ya comentaron (menos a quien escribe). */
   async comment(user, postId, body) {
     const post = await loadPost(user, postId);
+    if (!post.commentsEnabled) throw AppError.unprocessable('COMMENTS_DISABLED', 'Los comentarios de esta publicación están desactivados');
     const id = await withTransaction(async (connection, afterCommit) => {
       const repo = feedRepository.withConnection(connection);
       const commentId = await repo.insertComment({ postId, authorId: user.id, body });

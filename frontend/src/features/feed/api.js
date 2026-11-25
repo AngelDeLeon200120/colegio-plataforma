@@ -2,10 +2,11 @@ import { api } from '@/lib/apiClient';
 
 export const feedApi = {
   list: ({ cursor } = {}) => api(`/feed/posts${cursor ? `?cursor=${cursor}` : ''}`),
-  create({ body, isPinned, image }) {
+  create({ body, isPinned, commentsEnabled, image }) {
     const form = new FormData();
     form.append('body', body);
     form.append('isPinned', String(Boolean(isPinned)));
+    form.append('commentsEnabled', String(Boolean(commentsEnabled)));
     if (image) form.append('image', image);
     return api('/feed/posts', { method: 'POST', body: form });
   },

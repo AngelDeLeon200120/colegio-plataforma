@@ -247,10 +247,10 @@ Cada mensaje crea una notificación `MESSAGE` para quienes ven el hilo (menos el
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/feed/posts?cursor=&limit=` | todos | `{ pinned[] (solo 1.ª página), posts[], nextCursor, canPublish }`. Cada publicación trae reacciones, `reactedByMe` y los últimos 3 comentarios |
-| POST | `/feed/posts` | A | Multipart `{ body, isPinned?, image? }` (JPG, PNG, GIF o WEBP, máx. 8 MB, se verifica el contenido) |
-| PATCH · DELETE | `/feed/posts/:id` | A | `{ body?, isPinned? }` · borrado lógico |
+| POST | `/feed/posts` | A | Multipart `{ body, isPinned?, commentsEnabled?, image? }` (comentarios desactivados por defecto) (JPG, PNG, GIF o WEBP, máx. 8 MB, se verifica el contenido) |
+| PATCH · DELETE | `/feed/posts/:id` | A | `{ body?, isPinned?, commentsEnabled? }` · borrado lógico |
 | PUT | `/feed/posts/:id/reaction` | todos | `{ on }` → "Me gusta" |
-| GET · POST | `/feed/posts/:id/comments` | todos | Todos los comentarios · `{ body }` |
+| GET · POST | `/feed/posts/:id/comments` | todos | Todos los comentarios · `{ body }` (`422 COMMENTS_DISABLED` si la publicación no los permite; desactivados no se muestran) |
 | DELETE | `/feed/comments/:id` | autor o A | Borrado lógico |
 
 Una publicación nueva crea una notificación `POST` para toda la comunidad activa (menos quien publica) con enlace a `/home?post={id}`; un "Me gusta" avisa a quien publicó (`POST_REACTION`, una vez por persona) y un comentario avisa a quien publicó y a quienes ya comentaron (`POST_COMMENT`). Emite `feed:changed` a la sala `school:`.

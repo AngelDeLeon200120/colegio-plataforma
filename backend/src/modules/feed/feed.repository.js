@@ -3,7 +3,7 @@ import { BaseRepository } from '../../core/db/BaseRepository.js';
 const PREVIEW_COMMENTS = 3;
 
 const POST_COLUMNS = `
-  p.id, p.body, p.is_pinned, p.created_at, p.image_file_id,
+  p.id, p.body, p.is_pinned, p.comments_enabled, p.created_at, p.image_file_id,
   f.original_name AS image_name, f.mime_type AS image_mime,
   u.id AS author_id, u.first_name, u.last_name, u.role,
   (SELECT COUNT(*) FROM post_reactions r WHERE r.school_id = p.school_id AND r.post_id = p.id) AS reaction_count,
@@ -19,6 +19,7 @@ const toPost = (row) => ({
   id: row.id,
   body: row.body,
   isPinned: Boolean(row.is_pinned),
+  commentsEnabled: Boolean(row.comments_enabled),
   createdAt: row.created_at,
   image: row.image_file_id && row.image_name ? { id: row.image_file_id, name: row.image_name, mimeType: row.image_mime } : null,
   author: { id: row.author_id, firstName: row.first_name, lastName: row.last_name, role: row.role },
@@ -119,15 +120,15 @@ class FeedRepository extends BaseRepository {
     return rows.map((row) => row.id);
   }
 
-  async insertPost({ authorId, body, imageFileId, isPinned }) {
+  async insertPost({ authorId, body, imageFileId, isPinned, commentsEnabled }) {
     const result = await this.query(
-      'INSERT INTO posts (school_id, author_id, body, image_file_id, is_pinned) VALUES (?, ?, ?, ?, ?)',
-      [this.schoolId, authorId, body, imageFileId ?? null, isPinned ? 1 : 0],
+      'INSERT INTO posts (school_id, author_id, body, image_file_id, is_pinned, comments_enabled) VALUES (?, ?, ?, ?, ?, ?)',
+      [this.schoolId, authorId, body, imageFileId ?? null, isPinned ? 1 : 0, commentsEnabled ? 1 : 0],
     );
     return result.insertId;
   }
 
-  async updatePost(postId, { body, isPinned }) {
+  async updatePost(postId, { body, isPinned, commentsEnabled }) {
     const sets = [];
     const params = [];
     if (body !== undefined) {
@@ -137,6 +138,10 @@ class FeedRepository extends BaseRepository {
     if (isPinned !== undefined) {
       sets.push('is_pinned = ?');
       params.push(isPinned ? 1 : 0);
+    }
+    if (commentsEnabled !== undefined) {
+      sets.push('comments_enabled = ?');
+      params.push(commentsEnabled ? 1 : 0);
     }
     if (!sets.length) return;
     await this.query(`UPDATE posts SET ${sets.join(', ')} WHERE school_id = ? AND id = ? AND deleted_at IS NULL`, [

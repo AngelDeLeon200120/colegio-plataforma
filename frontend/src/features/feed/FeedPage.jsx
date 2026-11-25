@@ -6,6 +6,7 @@ import {
   ImagePlus,
   Loader2,
   MessageCircle,
+  MessageCircleOff,
   MoreHorizontal,
   Newspaper,
   Pin,
@@ -47,12 +48,16 @@ function Composer() {
   const [body, setBody] = useState('');
   const [image, setImage] = useState(null);
   const [isPinned, setIsPinned] = useState(false);
+  const [commentsEnabled, setCommentsEnabled] = useState(false); // por defecto, sin comentarios
   const [problem, setProblem] = useState(null);
   const fileInput = useRef(null);
   const preview = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
-  useEffect(() => () => {
-    if (preview) URL.revokeObjectURL(preview);
-  }, [preview]);
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
 
   const pick = (file) => {
     if (!file) return;
@@ -65,12 +70,13 @@ function Composer() {
   const publish = () => {
     if (!body.trim()) return setProblem('Escribe algo para publicar.');
     create.mutate(
-      { body: body.trim(), image, isPinned },
+      { body: body.trim(), image, isPinned, commentsEnabled },
       {
         onSuccess: () => {
           setBody('');
           setImage(null);
           setIsPinned(false);
+          setCommentsEnabled(false);
           setProblem(null);
         },
       },
@@ -117,6 +123,10 @@ function Composer() {
         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100">
           <input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="accent-brand-600" />
           <Pin className="size-3.5 text-amber-600" /> Fijar arriba
+        </label>
+        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100">
+          <input type="checkbox" checked={commentsEnabled} onChange={(event) => setCommentsEnabled(event.target.checked)} className="accent-brand-600" />
+          <MessageCircle className="size-3.5 text-brand-600" /> Permitir comentarios
         </label>
         <Button variant="primary" className="ml-auto" onClick={publish} loading={create.isPending}>
           Publicar
@@ -240,6 +250,18 @@ function PostCard({ post, focused }) {
                 <button
                   type="button"
                   role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    update.mutate({ postId: post.id, commentsEnabled: !post.commentsEnabled });
+                  }}
+                >
+                  {post.commentsEnabled ? <MessageCircleOff className="size-4" /> : <MessageCircle className="size-4" />}{' '}
+                  {post.commentsEnabled ? 'Desactivar comentarios' : 'Activar comentarios'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                   onClick={() => {
                     setMenuOpen(false);
@@ -289,57 +311,67 @@ function PostCard({ post, focused }) {
         >
           <ThumbsUp className={cn('size-4', liked && 'fill-current')} /> Me gusta
         </button>
-        <button
-          type="button"
-          onClick={() => commentInput.current?.focus()}
-          className="flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100"
-        >
-          <MessageCircle className="size-4" /> Comentar
-        </button>
+        {post.commentsEnabled && (
+          <button
+            type="button"
+            onClick={() => commentInput.current?.focus()}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100"
+          >
+            <MessageCircle className="size-4" /> Comentar
+          </button>
+        )}
       </div>
 
-      <div className="space-y-3 px-4 py-3">
-        {!showAll && post.commentCount > post.comments.length && (
-          <button type="button" className="text-xs font-medium text-zinc-600 hover:underline" onClick={() => setShowAll(true)}>
-            Ver los {post.commentCount} comentarios
-          </button>
-        )}
-        {all.isFetching && <Loader2 className="size-4 animate-spin text-zinc-400" />}
-        {comments.length > 0 && (
-          <ul className="space-y-2.5">
-            {comments.map((item) => (
-              <Comment key={item.id} comment={item} canDelete={isAdmin || item.author.id === user.id} />
-            ))}
-          </ul>
-        )}
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            send();
-          }}
-        >
-          <Avatar firstName={user.firstName} lastName={user.lastName} size="sm" />
-          <input
-            ref={commentInput}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            maxLength={1000}
-            placeholder="Escribe un comentario"
-            aria-label="Comentario"
-            className="h-9 min-w-0 flex-1 rounded-full bg-zinc-100 px-4 text-sm focus:bg-white focus:ring-2 focus:ring-brand-100 focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={!text.trim() || comment.isPending}
-            className="flex size-9 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50 disabled:text-zinc-300"
-            aria-label="Enviar comentario"
+      {!post.commentsEnabled ? (
+        isAdmin && (
+          <p className="flex items-center gap-1.5 px-4 py-2.5 text-xs text-zinc-500">
+            <MessageCircleOff className="size-3.5" /> Comentarios desactivados. Actívalos desde el menú ··· de la publicación.
+          </p>
+        )
+      ) : (
+        <div className="space-y-3 px-4 py-3">
+          {!showAll && post.commentCount > post.comments.length && (
+            <button type="button" className="text-xs font-medium text-zinc-600 hover:underline" onClick={() => setShowAll(true)}>
+              Ver los {post.commentCount} comentarios
+            </button>
+          )}
+          {all.isFetching && <Loader2 className="size-4 animate-spin text-zinc-400" />}
+          {comments.length > 0 && (
+            <ul className="space-y-2.5">
+              {comments.map((item) => (
+                <Comment key={item.id} comment={item} canDelete={isAdmin || item.author.id === user.id} />
+              ))}
+            </ul>
+          )}
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              send();
+            }}
           >
-            {comment.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          </button>
-        </form>
-        {comment.error && <p className="text-xs text-red-600">{comment.error.message}</p>}
-      </div>
+            <Avatar firstName={user.firstName} lastName={user.lastName} size="sm" />
+            <input
+              ref={commentInput}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              maxLength={1000}
+              placeholder="Escribe un comentario"
+              aria-label="Comentario"
+              className="h-9 min-w-0 flex-1 rounded-full bg-zinc-100 px-4 text-sm focus:bg-white focus:ring-2 focus:ring-brand-100 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!text.trim() || comment.isPending}
+              className="flex size-9 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50 disabled:text-zinc-300"
+              aria-label="Enviar comentario"
+            >
+              {comment.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </button>
+          </form>
+          {comment.error && <p className="text-xs text-red-600">{comment.error.message}</p>}
+        </div>
+      )}
     </article>
   );
 }
@@ -355,8 +387,21 @@ function UpcomingPanel() {
   });
   const { data, isLoading } = useAgenda(range);
   const items = [
-    ...(data?.events ?? []).map((event) => ({ key: `e${event.id}`, at: event.startsAt, title: event.title, color: CATEGORY_LOOK[event.category].color, icon: CalendarDays })),
-    ...(data?.meetings ?? []).map((meeting) => ({ key: `m${meeting.id}`, at: meeting.startsAt, title: meeting.title, color: '#7c3aed', icon: Video, sub: meeting.course.name })),
+    ...(data?.events ?? []).map((event) => ({
+      key: `e${event.id}`,
+      at: event.startsAt,
+      title: event.title,
+      color: CATEGORY_LOOK[event.category].color,
+      icon: CalendarDays,
+    })),
+    ...(data?.meetings ?? []).map((meeting) => ({
+      key: `m${meeting.id}`,
+      at: meeting.startsAt,
+      title: meeting.title,
+      color: '#7c3aed',
+      icon: Video,
+      sub: meeting.course.name,
+    })),
   ]
     .sort((a, b) => new Date(a.at) - new Date(b.at))
     .slice(0, 6);

@@ -787,6 +787,7 @@ CREATE TABLE IF NOT EXISTS posts (
   body           TEXT            NOT NULL,
   image_file_id  BIGINT UNSIGNED NULL,
   is_pinned      BOOLEAN         NOT NULL DEFAULT FALSE,
+  comments_enabled BOOLEAN       NOT NULL DEFAULT FALSE COMMENT 'La administración permite comentar',
   created_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at     DATETIME        NULL,

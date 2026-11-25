@@ -15,10 +15,12 @@ const listQuery = z.object({ cursor: id.optional(), limit: z.coerce.number().int
 const createBody = z.object({
   body: z.string().trim().min(1, 'Escribe la publicación').max(5000),
   isPinned: flag.default(false),
+  // Por defecto no se puede comentar: la administración lo activa
+  commentsEnabled: flag.default(false),
 });
 const updateBody = z
-  .object({ body: z.string().trim().min(1).max(5000).optional(), isPinned: z.boolean().optional() })
-  .refine((value) => value.body !== undefined || value.isPinned !== undefined, 'Nada que cambiar');
+  .object({ body: z.string().trim().min(1).max(5000).optional(), isPinned: z.boolean().optional(), commentsEnabled: z.boolean().optional() })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), 'Nada que cambiar');
 const reactBody = z.object({ on: z.boolean() });
 const commentBody = z.object({ body: z.string().trim().min(1, 'Escribe el comentario').max(1000) });
 

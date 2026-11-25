@@ -528,19 +528,6 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                   </th>
                 </>
               )}
-              {!readOnly && (
-                <th className="sticky top-0 z-20 border-b border-zinc-200 bg-zinc-50 px-1">
-                  <button
-                    type="button"
-                    onClick={onAddItem}
-                    className="flex size-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900"
-                    aria-label="Agregar columna"
-                    title="Agregar columna"
-                  >
-                    <Plus className="size-4" />
-                  </button>
-                </th>
-              )}
             </tr>
           </thead>
 
@@ -603,7 +590,6 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                       </td>
                     </>
                   )}
-                  {!readOnly && <td className="border-b border-zinc-200" />}
                 </tr>
               );
             })}
@@ -630,7 +616,6 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                   </td>
                 </>
               )}
-              {!readOnly && <td className="sticky bottom-0 border-t border-zinc-200 bg-zinc-50" />}
             </tr>
           </tfoot>
         </table>

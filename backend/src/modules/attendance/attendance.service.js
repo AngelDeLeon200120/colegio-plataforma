@@ -8,7 +8,7 @@ import { schoolTodayDate } from '../finance/finance.holds.js';
 import { FIXED_COLUMNS } from '../gradebook/gradebook.exams.js';
 import { gradebookRepository } from '../gradebook/gradebook.repository.js';
 import { attendanceRepository } from './attendance.repository.js';
-import { GOOD_ATTENDANCE } from './attendance.rules.js';
+import { GOOD_ATTENDANCE, weekdayOf } from './attendance.rules.js';
 import { syncAttendanceScores } from './attendance.sync.js';
 
 async function loadContext(user, courseId) {
@@ -17,19 +17,21 @@ async function loadContext(user, courseId) {
   assertCourseStaff(user, course.teacherId, 'Solo el docente del curso puede pasar su asistencia');
   const unit = await attendanceRepository.findActiveUnit(course.academicYearId);
   if (!unit) throw AppError.unprocessable('NO_ACTIVE_UNIT', 'No hay una unidad activa: la asistencia se pasa durante la unidad');
-  return { course, unit, today: await schoolTodayDate() };
+  const [today, classDays] = await Promise.all([schoolTodayDate(), attendanceRepository.findClassDays()]);
+  return { course, unit, today, classDays };
 }
 
-function assertDate(date, unit, today) {
+function assertDate(date, { unit, today, classDays }) {
   if (date > today) throw AppError.unprocessable('FUTURE_DATE', 'No se puede pasar asistencia de un día que aún no llega');
   if (date < unit.startsOn) throw AppError.unprocessable('DATE_OUT_OF_UNIT', `La ${unit.name} empezó después de esa fecha`);
+  if (!classDays.includes(weekdayOf(date))) throw AppError.unprocessable('NOT_A_CLASS_DAY', 'Ese día no hay clases');
 }
 
 const emitColumns = (course, unit, user) =>
   emitToRoom(rooms.courseStaff(course.id), 'gradebook:items_changed', { courseId: course.id, unitId: unit.id, updatedBy: user.id });
 
 /** Hoja completa de la unidad: estudiantes × días, como una hoja de cálculo. */
-async function buildSheet({ course, unit, today }) {
+async function buildSheet({ course, unit, today, classDays }) {
   const [students, records, items, scores] = await Promise.all([
     academicRepository.listSectionStudents(course.sectionId),
     attendanceRepository.listUnit(course.id, unit.id),
@@ -54,6 +56,7 @@ async function buildSheet({ course, unit, today }) {
     course: { id: course.id, name: course.name },
     unit: { id: unit.id, name: unit.name, startsOn: unit.startsOn },
     today,
+    classDays,
     goodAttendance: GOOD_ATTENDANCE,
     maxScore,
     students,
@@ -71,8 +74,8 @@ export const attendanceService = {
   /** Guarda uno o varios días a la vez; todo o nada. */
   async save(user, courseId, { days }) {
     const context = await loadContext(user, courseId);
-    const { course, unit, today } = context;
-    for (const { date } of days) assertDate(date, unit, today);
+    const { course, unit } = context;
+    for (const { date } of days) assertDate(date, context);
 
     const students = await academicRepository.listSectionStudents(course.sectionId);
     const enrolled = new Set(students.map((student) => student.id));

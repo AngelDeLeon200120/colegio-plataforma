@@ -10,7 +10,7 @@ import { useMyCourses } from '@/features/gradebook/hooks';
 import { cn } from '@/lib/cn';
 import { formatDate, formatScore } from '@/lib/format';
 import { useAttendanceSheet, useRemoveAttendance, useSaveAttendance } from './hooks';
-import { ABSENT, MAX_NOTE, PRESENT, cellKey, changedDates, effectiveStatus, noteOf, summarize, toDays, withChange } from './model';
+import { ABSENT, MAX_NOTE, PRESENT, cellKey, changedDates, effectiveStatus, lastClassDay, noteOf, sheetDates, summarize, toDays, withChange } from './model';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const longDate = (date) => formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -34,14 +34,21 @@ function RemoveDayDialog({ date, courseId, onClose, onRemoved }) {
           <Button onClick={onClose} disabled={remove.isPending}>
             Cancelar
           </Button>
-          <Button variant="primary" className="bg-red-600 hover:bg-red-700" loading={remove.isPending} onClick={() => remove.mutate(date, { onSuccess: onRemoved })}>
+          <Button
+            variant="primary"
+            className="bg-red-600 hover:bg-red-700"
+            loading={remove.isPending}
+            onClick={() => remove.mutate(date, { onSuccess: onRemoved })}
+          >
             Quitar
           </Button>
         </>
       }
     >
       <FormError error={remove.error} />
-      <p className="text-sm text-zinc-700">Se borra la asistencia de ese día y se recalcula la nota de Asistencia. Úsalo si fue asueto o se pasó lista por error.</p>
+      <p className="text-sm text-zinc-700">
+        Se borra la asistencia de ese día y se recalcula la nota de Asistencia. Úsalo si fue asueto o se pasó lista por error.
+      </p>
     </Dialog>
   );
 }
@@ -49,7 +56,7 @@ function RemoveDayDialog({ date, courseId, onClose, onRemoved }) {
 /** Hoja de asistencia: una fila por estudiante y una columna por día, con check o equis y una nota opcional. */
 function AttendanceSheet({ sheet, courseId }) {
   const [changes, setChanges] = useState({}); // "fecha:estudiante" → { status?, note? } sin guardar
-  const [active, setActive] = useState({ row: 0, date: sheet.today });
+  const [active, setActive] = useState(() => ({ row: 0, date: lastClassDay(sheet, sheetDates(sheet)) }));
   const [notice, setNotice] = useState(null);
   const [removing, setRemoving] = useState(false);
   const save = useSaveAttendance(courseId);
@@ -57,11 +64,13 @@ function AttendanceSheet({ sheet, courseId }) {
   const noteRef = useRef(null);
 
   const { students } = sheet;
-  // El día de hoy entra solo, aunque todavía no se haya pasado lista
-  const dates = useMemo(() => [...new Set([...Object.keys(sheet.days), sheet.today])].sort(), [sheet.days, sheet.today]);
+  // Los días de clase de la semana entran solos (de lunes a viernes, o los que tenga el colegio)
+  const dates = useMemo(() => sheetDates(sheet), [sheet]);
   const touched = changedDates(changes);
   const dirty = touched.size > 0;
-  const activeDate = dates.includes(active.date) ? active.date : sheet.today;
+  const activeDate = dates.includes(active.date) ? active.date : lastClassDay(sheet, dates);
+  const future = (date) => date > sheet.today;
+  const activeFuture = future(activeDate);
   const activeRow = clamp(active.row, 0, students.length - 1);
   const activeSaved = Boolean(sheet.days[activeDate]);
 
@@ -85,15 +94,15 @@ function AttendanceSheet({ sheet, courseId }) {
     setChanges((current) => withChange(sheet, current, date, studentId, patch));
   };
   const togglePresent = (date, studentId) =>
-    change(date, studentId, { status: effectiveStatus(sheet, changes, touched, date, studentId) === PRESENT ? ABSENT : PRESENT });
-  const markAll = () => students.forEach((student) => change(activeDate, student.id, { status: PRESENT }));
+    !future(date) && change(date, studentId, { status: effectiveStatus(sheet, changes, touched, date, studentId) === PRESENT ? ABSENT : PRESENT });
+  const markAll = () => !activeFuture && students.forEach((student) => change(activeDate, student.id, { status: PRESENT }));
 
   const activeStudent = students[activeRow];
   const activeStatus = activeStudent && effectiveStatus(sheet, changes, touched, activeDate, activeStudent.id);
   const activeNote = activeStudent ? noteOf(sheet, changes, activeDate, activeStudent.id) : '';
   // Una nota en una celda sin marcar (p. ej. "Llegó tarde") cuenta como que asistió
-  const setNote = (note) => change(activeDate, activeStudent.id, activeStatus || !note ? { note } : { note, status: PRESENT });
-  const arrivedLate = () => change(activeDate, activeStudent.id, { status: PRESENT, note: 'Llegó tarde' });
+  const setNote = (note) => !activeFuture && change(activeDate, activeStudent.id, activeStatus || !note ? { note } : { note, status: PRESENT });
+  const arrivedLate = () => !activeFuture && change(activeDate, activeStudent.id, { status: PRESENT, note: 'Llegó tarde' });
 
   const onSave = () =>
     save.mutate(toDays(sheet, changes), {
@@ -138,11 +147,18 @@ function AttendanceSheet({ sheet, courseId }) {
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2 sm:px-6">
         <span className="text-sm font-medium text-zinc-900 first-letter:uppercase">{longDate(activeDate)}</span>
-        <Button size="sm" onClick={markAll}>
+        {activeFuture && <span className="text-xs text-zinc-500">Todavía no llega: se marca ese día</span>}
+        <Button size="sm" onClick={markAll} disabled={activeFuture}>
           <CheckCheck className="size-4" /> Todos asistieron
         </Button>
         {activeSaved && (
-          <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} disabled={save.isPending || dirty} title={dirty ? 'Guarda primero los cambios' : undefined}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setRemoving(true)}
+            disabled={save.isPending || dirty}
+            title={dirty ? 'Guarda primero los cambios' : undefined}
+          >
             <Trash2 className="size-3.5" /> Quitar día
           </Button>
         )}
@@ -181,10 +197,11 @@ function AttendanceSheet({ sheet, courseId }) {
             gridRef.current?.focus({ preventScroll: true });
           }}
           placeholder="Nota de este día, ej. Llegó tarde"
+          disabled={activeFuture}
           aria-label={`Nota de ${activeStudent.firstName} ${activeStudent.lastName}`}
           className={cn(inputClass, 'h-8 min-w-40 flex-1')}
         />
-        <Button size="sm" onClick={arrivedLate} title="Marca que asistió y anota que llegó tarde">
+        <Button size="sm" onClick={arrivedLate} disabled={activeFuture} title="Marca que asistió y anota que llegó tarde">
           <Clock className="size-3.5" /> Llegó tarde
         </Button>
       </div>
@@ -203,10 +220,27 @@ function AttendanceSheet({ sheet, courseId }) {
         <table className="border-separate border-spacing-0 border-t border-l border-zinc-400 text-sm">
           <thead>
             <tr>
-              <th className={cn(CELL, 'sticky -top-4 -left-4 z-30 w-11 min-w-11 bg-white px-1 py-1.5 text-center text-xs font-bold sm:-top-6 sm:-left-6')}>No.</th>
-              <th className={cn(CELL, 'sticky -top-4 left-7 z-30 w-64 min-w-64 bg-white px-2 text-center text-xs font-bold max-sm:w-36 max-sm:min-w-36 sm:-top-6 sm:left-5')}>NOMBRE</th>
+              <th className={cn(CELL, 'sticky -top-4 -left-4 z-30 w-11 min-w-11 bg-white px-1 py-1.5 text-center text-xs font-bold sm:-top-6 sm:-left-6')}>
+                No.
+              </th>
+              <th
+                className={cn(
+                  CELL,
+                  'sticky -top-4 left-7 z-30 w-64 min-w-64 bg-white px-2 text-center text-xs font-bold max-sm:w-36 max-sm:min-w-36 sm:-top-6 sm:left-5',
+                )}
+              >
+                NOMBRE
+              </th>
               {dates.map((date) => (
-                <DayHeader key={date} date={date} today={sheet.today} active={date === activeDate} changed={touched.has(date)} onSelect={() => setActive({ row: activeRow, date })} />
+                <DayHeader
+                  key={date}
+                  date={date}
+                  today={sheet.today}
+                  future={future(date)}
+                  active={date === activeDate}
+                  changed={touched.has(date)}
+                  onSelect={() => setActive({ row: activeRow, date })}
+                />
               ))}
               <th className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}>Asistencia</th>
               <th className={cn(CELL, HEAD, 'min-w-14 bg-white px-2 text-center text-xs font-bold')}>%</th>
@@ -222,11 +256,17 @@ function AttendanceSheet({ sheet, courseId }) {
               const rowActive = row === activeRow;
               return (
                 <tr key={student.id}>
-                  <td className={cn(CELL, 'sticky -left-4 z-10 bg-white text-center text-xs tabular-nums sm:-left-6', rowActive && 'bg-brand-50')}>{row + 1}</td>
+                  <td className={cn(CELL, 'sticky -left-4 z-10 bg-white text-center text-xs tabular-nums sm:-left-6', rowActive && 'bg-brand-50')}>
+                    {row + 1}
+                  </td>
                   <th
                     scope="row"
                     title={student.code}
-                    className={cn(CELL, 'sticky left-7 z-10 max-w-64 truncate bg-white px-2 text-left font-normal text-zinc-900 max-sm:max-w-36 sm:left-5', rowActive && 'bg-brand-50')}
+                    className={cn(
+                      CELL,
+                      'sticky left-7 z-10 max-w-64 truncate bg-white px-2 text-left font-normal text-zinc-900 max-sm:max-w-36 sm:left-5',
+                      rowActive && 'bg-brand-50',
+                    )}
                   >
                     {student.lastName}, {student.firstName}
                   </th>
@@ -239,6 +279,7 @@ function AttendanceSheet({ sheet, courseId }) {
                         key={date}
                         id={`${row}:${date}`}
                         status={status}
+                        future={future(date)}
                         active={isActive}
                         note={noteOf(sheet, changes, date, student.id)}
                         changed={cellKey(date, student.id) in changes}
@@ -249,9 +290,15 @@ function AttendanceSheet({ sheet, courseId }) {
                     );
                   })}
                   <td className={cn(CELL, 'px-2 text-center tabular-nums')}>{summary.counted ? `${summary.present}/${summary.counted}` : ''}</td>
-                  <td className={cn(CELL, 'px-2 text-center tabular-nums')}>{summary.rate === null ? '' : `${formatScore(Math.round(summary.rate * 100))}%`}</td>
+                  <td className={cn(CELL, 'px-2 text-center tabular-nums')}>
+                    {summary.rate === null ? '' : `${formatScore(Math.round(summary.rate * 100))}%`}
+                  </td>
                   <td
-                    className={cn(CELL, 'px-2 text-center font-semibold tabular-nums', summary.adjusted ? 'text-blue-700' : good ? 'text-emerald-700' : 'text-red-600')}
+                    className={cn(
+                      CELL,
+                      'px-2 text-center font-semibold tabular-nums',
+                      summary.adjusted ? 'text-blue-700' : good ? 'text-emerald-700' : 'text-red-600',
+                    )}
                     title={summary.adjusted ? 'Cambiada con "Mejora" en el cuadro de notas' : undefined}
                   >
                     {summary.score === null ? '' : formatScore(summary.score)}
@@ -330,11 +377,13 @@ function AttendanceSheet({ sheet, courseId }) {
   );
 }
 
-function DayHeader({ date, today, active, changed, onSelect }) {
+function DayHeader({ date, today, future, active, changed, onSelect }) {
   return (
-    <th className={cn(CELL, HEAD, 'w-16 min-w-16 p-0 text-center', active ? 'bg-brand-100' : 'bg-white')}>
+    <th className={cn(CELL, HEAD, 'w-16 min-w-16 p-0 text-center', active ? 'bg-brand-100' : future ? 'bg-zinc-100' : 'bg-white')}>
       <button type="button" onClick={onSelect} className="w-full px-1 py-1 hover:bg-brand-50" title={longDate(date)}>
-        <span className="block text-xs font-bold text-zinc-900">{formatDate(date, { day: 'numeric', month: 'short' })}</span>
+        <span className={cn('block text-xs font-bold', future ? 'text-zinc-400' : 'text-zinc-900')}>
+          {formatDate(date, { day: 'numeric', month: 'short' })}
+        </span>
         <span className={cn('block text-[10px] font-normal', date === today ? 'text-brand-700' : 'text-zinc-500')}>
           {date === today ? 'hoy' : formatDate(date, { weekday: 'short' })}
           {changed && ' •'}
@@ -349,8 +398,20 @@ const MARKS = {
   [ABSENT]: { text: '✗', label: 'faltó', className: 'text-red-600' },
 };
 
-function DayCell({ id, status, note, active, changed, label, onClick, onNote }) {
+function DayCell({ id, status, note, future, active, changed, label, onClick, onNote }) {
   const mark = MARKS[status];
+  // Un día de esta semana que todavía no llega: se ve, pero no se marca
+  if (future) {
+    return (
+      <td
+        data-cell={id}
+        role="gridcell"
+        aria-disabled="true"
+        aria-label={`${label}: todavía no llega`}
+        className={cn(CELL, 'h-8 bg-zinc-100', active && 'shadow-[inset_0_0_0_2px_var(--color-zinc-300)]')}
+      />
+    );
+  }
   return (
     <td
       data-cell={id}
@@ -409,7 +470,12 @@ export function AttendancePage() {
         <h1 className="text-2xl font-normal text-zinc-900">Asistencias</h1>
         {course && (
           <>
-            <select value={course.id} onChange={(event) => setSearchParams({ course: event.target.value })} aria-label="Curso" className={cn(inputClass, 'max-w-full')}>
+            <select
+              value={course.id}
+              onChange={(event) => setSearchParams({ course: event.target.value })}
+              aria-label="Curso"
+              className={cn(inputClass, 'max-w-full')}
+            >
               {courses.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}

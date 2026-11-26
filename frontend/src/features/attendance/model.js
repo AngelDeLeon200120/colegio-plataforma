@@ -6,6 +6,29 @@ export const ABSENT = 'ABSENT';
 export const EXCUSED = 'EXCUSED';
 export const MAX_NOTE = 200;
 
+const DAY_MS = 86_400_000;
+const toDate = (text) => new Date(`${text}T00:00:00Z`);
+const toText = (date) => date.toISOString().slice(0, 10);
+
+/**
+ * Columnas de la hoja: los días de clase de esta semana (de lunes a viernes, o los del colegio) y los que ya
+ * tienen lista. Los de esta semana que aún no llegan se ven, pero no se pueden marcar.
+ */
+export function sheetDates(sheet) {
+  const today = toDate(sheet.today);
+  const monday = new Date(today.getTime() - ((today.getUTCDay() + 6) % 7) * DAY_MS);
+  const week = Array.from({ length: 7 }, (_, index) => new Date(monday.getTime() + index * DAY_MS))
+    .filter((date) => sheet.classDays.includes(date.getUTCDay()))
+    .map(toText)
+    .filter((date) => date >= sheet.unit.startsOn);
+  return [...new Set([...Object.keys(sheet.days), ...week])].sort();
+}
+
+/** Último día de clase hasta hoy (si hoy no hay clase, el anterior que sí). */
+export function lastClassDay(sheet, dates) {
+  return [...dates].reverse().find((date) => date <= sheet.today) ?? dates[0] ?? sheet.today;
+}
+
 export const cellKey = (date, studentId) => `${date}:${studentId}`;
 
 const savedStatus = (sheet, date, studentId) => sheet.days[date]?.[studentId] ?? null;

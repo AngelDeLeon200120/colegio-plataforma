@@ -1,4 +1,5 @@
 import { BaseRepository } from '../../core/db/BaseRepository.js';
+import { classDaysFrom } from './attendance.rules.js';
 
 class AttendanceRepository extends BaseRepository {
   /** Unidad activa del ciclo del curso, con su fecha de inicio. */
@@ -10,6 +11,14 @@ class AttendanceRepository extends BaseRepository {
       [this.schoolId, academicYearId],
     );
     return row && { id: row.id, name: row.name, status: row.status, examColumns: Boolean(row.exam_columns), startsOn: row.starts_on };
+  }
+
+  /** Días de clase del colegio (de schools.settings; por defecto, de lunes a viernes). */
+  async findClassDays() {
+    // `schools` es la tabla del tenant (su id ES el school_id): no pasa por el guard de query()
+    const [rows] = await this.db.execute('SELECT settings FROM schools WHERE id = ?', [this.schoolId]);
+    const settings = rows[0]?.settings;
+    return classDaysFrom(typeof settings === 'string' ? JSON.parse(settings) : settings);
   }
 
   /** Todas las marcas de la unidad, día por día. */

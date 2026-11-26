@@ -70,6 +70,16 @@ class AttendanceRepository extends BaseRepository {
     );
   }
 
+  /** Deja vacías las celdas de esos estudiantes en ese día. */
+  async clearEntries(courseId, unitId, date, studentIds) {
+    if (!studentIds.length) return;
+    await this.query(
+      `DELETE FROM attendance_records
+        WHERE school_id = ? AND course_id = ? AND academic_unit_id = ? AND attended_on = ? AND student_id IN (${studentIds.map(() => '?').join(', ')})`,
+      [this.schoolId, courseId, unitId, date, ...studentIds],
+    );
+  }
+
   async deleteDay(courseId, unitId, date) {
     const result = await this.query(
       'DELETE FROM attendance_records WHERE school_id = ? AND course_id = ? AND academic_unit_id = ? AND attended_on = ?',

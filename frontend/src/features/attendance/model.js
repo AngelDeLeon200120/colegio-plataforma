@@ -4,6 +4,8 @@
 export const PRESENT = 'PRESENT';
 export const ABSENT = 'ABSENT';
 export const EXCUSED = 'EXCUSED';
+// Solo en los cambios sin guardar: celda vaciada a propósito (tercer clic). No cuenta y se guarda sin marca.
+export const EMPTY = 'EMPTY';
 export const MAX_NOTE = 200;
 
 const DAY_MS = 86_400_000;
@@ -53,8 +55,11 @@ const savedStatus = (sheet, date, studentId) => sheet.days[date]?.[studentId] ??
 const savedNote = (sheet, date, studentId) => sheet.notes[date]?.[studentId] ?? '';
 
 /** Lo que se ve: el cambio sin guardar si lo hay; si no, lo guardado. */
-export const statusOf = (sheet, changes, date, studentId) =>
-  changes[cellKey(date, studentId)]?.status ?? savedStatus(sheet, date, studentId);
+export function statusOf(sheet, changes, date, studentId) {
+  const changed = changes[cellKey(date, studentId)]?.status;
+  if (changed === EMPTY) return null;
+  return changed ?? savedStatus(sheet, date, studentId);
+}
 export const noteOf = (sheet, changes, date, studentId) => changes[cellKey(date, studentId)]?.note ?? savedNote(sheet, date, studentId);
 
 /** Días con alguna marca o nota sin guardar. */
@@ -65,7 +70,7 @@ export function withChange(sheet, changes, date, studentId, patch) {
   const key = cellKey(date, studentId);
   const next = { ...changes[key], ...patch };
   const baseStatus = savedStatus(sheet, date, studentId) ?? (sheet.days[date] ? null : ABSENT);
-  if (next.status === baseStatus) delete next.status;
+  if ((next.status === EMPTY ? null : next.status) === baseStatus) delete next.status;
   if (next.note === savedNote(sheet, date, studentId)) delete next.note;
 
   const result = { ...changes, [key]: next };
@@ -78,6 +83,7 @@ export function withChange(sheet, changes, date, studentId, patch) {
  * (así se guardará); en un día ya guardado, sin marca no cuenta (p. ej. se inscribió después).
  */
 export function effectiveStatus(sheet, changes, touched, date, studentId) {
+  if (changes[cellKey(date, studentId)]?.status === EMPTY) return null;
   const status = statusOf(sheet, changes, date, studentId);
   if (status) return status;
   return !sheet.days[date] && touched.has(date) ? ABSENT : null;
@@ -99,17 +105,37 @@ export function summarize(sheet, changes, dates, studentId) {
   return { ...summary, counted, rate, score: adjusted ? sheet.adjusted[studentId] : computed, adjusted };
 }
 
-/** Cambios → días para guardar. Un día nuevo va completo (sin check = faltó); de uno guardado, solo lo que cambió. */
+/**
+ * Cambios → días para guardar. Un día nuevo va completo (sin check = faltó); de uno guardado, solo lo que cambió.
+ * Una celda vaciada va con status null (en un día nuevo, simplemente no se manda).
+ */
 export function toDays(sheet, changes) {
-  return [...changedDates(changes)].map((date) => {
-    const isNew = !sheet.days[date];
-    const entries = sheet.students
-      .filter(({ id }) => isNew || cellKey(date, id) in changes)
-      .map(({ id }) => ({
-        studentId: id,
-        status: statusOf(sheet, changes, date, id) ?? ABSENT,
-        note: noteOf(sheet, changes, date, id).trim() || null,
-      }));
-    return { date, entries };
-  });
+  return [...changedDates(changes)]
+    .map((date) => {
+      const isNew = !sheet.days[date];
+      const entries = sheet.students
+        .filter(({ id }) => (isNew ? changes[cellKey(date, id)]?.status !== EMPTY : cellKey(date, id) in changes))
+        .map(({ id }) =>
+          changes[cellKey(date, id)]?.status === EMPTY
+            ? { studentId: id, status: null }
+            : {
+                studentId: id,
+                status: statusOf(sheet, changes, date, id) ?? ABSENT,
+                note: noteOf(sheet, changes, date, id).trim() || null,
+              },
+        );
+      return { date, entries };
+    })
+    .filter((day) => day.entries.length);
+}
+
+/**
+ * Cambio de un clic en una celda: vacía → ✓ → ✗ → vacía. Vaciarla quita también su nota; al volver a marcarla
+ * recupera la nota guardada (dar la vuelta completa la deja como estaba).
+ */
+export function clickPatch(sheet, changes, touched, date, studentId) {
+  const status = effectiveStatus(sheet, changes, touched, date, studentId);
+  if (status === PRESENT) return { status: ABSENT };
+  if (status) return { status: EMPTY, note: '' };
+  return { status: PRESENT, note: savedNote(sheet, date, studentId) };
 }

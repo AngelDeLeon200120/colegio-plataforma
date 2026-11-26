@@ -16,6 +16,7 @@ import {
   PRESENT,
   cellKey,
   changedDates,
+  clickPatch,
   effectiveStatus,
   lastClassDay,
   mondayOf,
@@ -117,9 +118,11 @@ function AttendanceSheet({ sheet, courseId }) {
     setNotice(null);
     setChanges((current) => withChange(sheet, current, date, studentId, patch));
   };
-  const togglePresent = (date, studentId) =>
-    !future(date) &&
-    change(date, studentId, { status: effectiveStatus(sheet, changes, touched, date, studentId) === PRESENT ? ABSENT : PRESENT });
+  // Cada clic: vacía → ✓ → ✗ → vacía (vaciarla también quita su nota)
+  const togglePresent = (date, studentId) => {
+    if (future(date)) return;
+    change(date, studentId, clickPatch(sheet, changes, touched, date, studentId));
+  };
   const markAll = () => !activeFuture && students.forEach((student) => change(activeDate, student.id, { status: PRESENT }));
 
   const activeStudent = students[activeRow];
@@ -130,13 +133,17 @@ function AttendanceSheet({ sheet, courseId }) {
     !activeFuture && change(activeDate, activeStudent.id, activeStatus || !note ? { note } : { note, status: PRESENT });
   const arrivedLate = () => !activeFuture && change(activeDate, activeStudent.id, { status: PRESENT, note: 'Llegó tarde' });
 
-  const onSave = () =>
-    save.mutate(toDays(sheet, changes), {
+  const onSave = () => {
+    const days = toDays(sheet, changes);
+    // Solo se vaciaron celdas de un día sin lista: no hay nada que guardar
+    if (!days.length) return setChanges({});
+    save.mutate(days, {
       onSuccess: () => {
         setChanges({});
         setNotice('Guardado. La nota ya está en el cuadro.');
       },
     });
+  };
 
   /** Otra semana; las marcas sin guardar se conservan y se guardan juntas. */
   const goWeek = (weeks) => {

@@ -85,8 +85,18 @@ export const attendanceService = {
 
     await withTransaction(async (connection, afterCommit) => {
       const repo = attendanceRepository.withConnection(connection);
-      for (const { date, entries } of days) await repo.upsertDay({ courseId: course.id, unitId: unit.id, date, entries, markedBy: user.id });
-      if (await syncAttendanceScores(connection, { course, unit, students, userId: user.id })) afterCommit(() => emitColumns(course, unit, user));
+      const clearedIds = new Set();
+      for (const { date, entries } of days) {
+        // Celdas vacías: se quita la marca; si el estudiante se queda sin días, su nota se vacía
+        const cleared = entries.filter((entry) => entry.status === null).map((entry) => entry.studentId);
+        const marked = entries.filter((entry) => entry.status !== null);
+        await repo.clearEntries(course.id, unit.id, date, cleared);
+        if (marked.length) await repo.upsertDay({ courseId: course.id, unitId: unit.id, date, entries: marked, markedBy: user.id });
+        cleared.forEach((studentId) => clearedIds.add(studentId));
+      }
+      if (await syncAttendanceScores(connection, { course, unit, students, userId: user.id, clearedIds: [...clearedIds] })) {
+        afterCommit(() => emitColumns(course, unit, user));
+      }
     });
     return buildSheet(context);
   },

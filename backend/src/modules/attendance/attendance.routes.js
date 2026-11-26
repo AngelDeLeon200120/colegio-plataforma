@@ -18,7 +18,8 @@ const day = z.object({
     .array(
       z.object({
         studentId: id,
-        status: z.enum(['PRESENT', 'ABSENT', 'EXCUSED']),
+        // null: celda vacía (se quita la marca de ese estudiante en ese día)
+        status: z.enum(['PRESENT', 'ABSENT', 'EXCUSED']).nullable(),
         note: z
           .string()
           .trim()

@@ -81,6 +81,7 @@ Roles abreviados en las tablas: **A** Admin · **T** Profesor · **S** Alumno ·
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
 | GET | `/admin/academic` | A | Ciclo activo con unidades, grados, secciones (con estudiantes), materias, cursos y docentes. Cada alta o cambio de abajo responde con esta misma estructura |
+| PUT | `/admin/academic/class-days` | A | `{ classDays: [1,2,3,4,5,6] }` (0 = domingo … 6 = sábado). Días en que hay clases; por defecto de lunes a viernes. Se guarda en `schools.settings.classDays` y la asistencia los toma solos. El GET de arriba trae `classDays` |
 | POST | `/admin/academic/units` | A | `{ name, startsOn, endsOn }`; el número de unidad es el siguiente |
 | POST | `/admin/academic/units/:id/activate` · `close` · `reopen` | A | `SCHEDULED → ACTIVE`, `ACTIVE → CLOSED`, `CLOSED → ACTIVE`. Una sola activa por ciclo (`409 UNIT_ALREADY_ACTIVE`). Emite `unit:status_changed` |
 | POST | `/admin/academic/grade-levels` · `sections` · `subjects` | A | Catálogos (duplicados → `409` con mensaje claro) |

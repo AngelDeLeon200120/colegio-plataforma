@@ -21,6 +21,14 @@ class AttendanceRepository extends BaseRepository {
     return classDaysFrom(typeof settings === 'string' ? JSON.parse(settings) : settings);
   }
 
+  /** Guarda los días de clase sin tocar el resto de la configuración del colegio. */
+  async saveClassDays(classDays) {
+    await this.db.execute("UPDATE schools SET settings = JSON_SET(COALESCE(settings, JSON_OBJECT()), '$.classDays', CAST(? AS JSON)) WHERE id = ?", [
+      JSON.stringify(classDays),
+      this.schoolId,
+    ]);
+  }
+
   /** Todas las marcas de la unidad, día por día. */
   async listUnit(courseId, unitId) {
     const rows = await this.query(

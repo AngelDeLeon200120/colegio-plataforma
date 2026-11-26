@@ -66,6 +66,9 @@ adminRouter.post('/admin/academic/units', validate({ body: schemas.unitBody }), 
 adminRouter.post('/admin/academic/units/:id/:action', validate({ params: schemas.unitActionParams }), async (req, res) => {
   res.json({ data: await academicAdminService.changeUnitStatus(req.user, req.valid.params.id, req.valid.params.action) });
 });
+adminRouter.put('/admin/academic/class-days', validate({ body: schemas.classDaysBody }), async (req, res) => {
+  res.json({ data: await academicAdminService.setClassDays(req.user, req.valid.body.classDays) });
+});
 adminRouter.post('/admin/academic/grade-levels', validate({ body: schemas.gradeLevelBody }), async (req, res) => {
   res.status(201).json({ data: await academicAdminService.createGradeLevel(req.valid.body) });
 });

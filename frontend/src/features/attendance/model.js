@@ -9,24 +9,42 @@ export const MAX_NOTE = 200;
 const DAY_MS = 86_400_000;
 const toDate = (text) => new Date(`${text}T00:00:00Z`);
 const toText = (date) => date.toISOString().slice(0, 10);
+const shiftDays = (text, days) => toText(new Date(toDate(text).getTime() + days * DAY_MS));
 
-/**
- * Columnas de la hoja: los días de clase de esta semana (de lunes a viernes, o los del colegio) y los que ya
- * tienen lista. Los de esta semana que aún no llegan se ven, pero no se pueden marcar.
- */
-export function sheetDates(sheet) {
-  const today = toDate(sheet.today);
-  const monday = new Date(today.getTime() - ((today.getUTCDay() + 6) % 7) * DAY_MS);
-  const week = Array.from({ length: 7 }, (_, index) => new Date(monday.getTime() + index * DAY_MS))
-    .filter((date) => sheet.classDays.includes(date.getUTCDay()))
-    .map(toText)
-    .filter((date) => date >= sheet.unit.startsOn);
-  return [...new Set([...Object.keys(sheet.days), ...week])].sort();
+/** Lunes de la semana de una fecha (AAAA-MM-DD). */
+export function mondayOf(date) {
+  const day = toDate(date);
+  return toText(new Date(day.getTime() - ((day.getUTCDay() + 6) % 7) * DAY_MS));
 }
 
-/** Último día de clase hasta hoy (si hoy no hay clase, el anterior que sí). */
+export const shiftWeek = (monday, weeks) => toText(new Date(toDate(monday).getTime() + weeks * 7 * DAY_MS));
+export const weekEnd = (monday) => toText(new Date(toDate(monday).getTime() + 6 * DAY_MS));
+
+/** Primera y última semana que se pueden ver: desde la que empezó la unidad hasta la de hoy. */
+export const weekBounds = (sheet) => ({ first: mondayOf(sheet.unit.startsOn), last: mondayOf(sheet.today) });
+
+const isClassDay = (sheet, date) => sheet.classDays.includes(toDate(date).getUTCDay());
+
+/**
+ * Columnas de una semana: sus días de clase (de lunes a viernes, o los del colegio) dentro de la unidad, y los que
+ * ya tienen lista aunque no sean de clase. Los que aún no llegan se ven, pero no se pueden marcar.
+ */
+export function weekDates(sheet, monday) {
+  const end = weekEnd(monday);
+  const classDays = Array.from({ length: 7 }, (_, index) => shiftDays(monday, index)).filter(
+    (date) => isClassDay(sheet, date) && date >= sheet.unit.startsOn,
+  );
+  const saved = Object.keys(sheet.days).filter((date) => date >= monday && date <= end);
+  return [...new Set([...saved, ...classDays])].sort();
+}
+
+/** Todos los días que cuentan para la nota de la unidad: los guardados y los que tienen cambios sin guardar. */
+export const unitDates = (sheet, changes) => [...new Set([...Object.keys(sheet.days), ...changedDates(changes)])];
+
+/** Último día de clase hasta hoy (si hoy no hay clase, el anterior que sí; uno sin clase solo si no hay otro). */
 export function lastClassDay(sheet, dates) {
-  return [...dates].reverse().find((date) => date <= sheet.today) ?? dates[0] ?? sheet.today;
+  const past = dates.filter((date) => date <= sheet.today).reverse();
+  return past.find((date) => isClassDay(sheet, date)) ?? past[0] ?? dates[0] ?? sheet.today;
 }
 
 export const cellKey = (date, studentId) => `${date}:${studentId}`;
@@ -35,7 +53,8 @@ const savedStatus = (sheet, date, studentId) => sheet.days[date]?.[studentId] ??
 const savedNote = (sheet, date, studentId) => sheet.notes[date]?.[studentId] ?? '';
 
 /** Lo que se ve: el cambio sin guardar si lo hay; si no, lo guardado. */
-export const statusOf = (sheet, changes, date, studentId) => changes[cellKey(date, studentId)]?.status ?? savedStatus(sheet, date, studentId);
+export const statusOf = (sheet, changes, date, studentId) =>
+  changes[cellKey(date, studentId)]?.status ?? savedStatus(sheet, date, studentId);
 export const noteOf = (sheet, changes, date, studentId) => changes[cellKey(date, studentId)]?.note ?? savedNote(sheet, date, studentId);
 
 /** Días con alguna marca o nota sin guardar. */

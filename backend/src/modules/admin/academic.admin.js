@@ -2,6 +2,7 @@ import { AppError } from '../../core/errors/AppError.js';
 import { BaseRepository } from '../../core/db/BaseRepository.js';
 import { emitToRoom } from '../../realtime/emitter.js';
 import { rooms } from '../../realtime/rooms.js';
+import { attendanceRepository } from '../attendance/attendance.repository.js';
 
 // Estructura del ciclo activo: unidades, grados, secciones, materias y cursos.
 
@@ -182,8 +183,9 @@ async function assertTeacher(teacherId) {
 export const academicAdminService = {
   async overview() {
     const year = await repo.activeYear();
-    if (!year) return { year: null, units: [], gradeLevels: [], sections: [], subjects: [], courses: [], teachers: [] };
-    return { year, ...(await repo.overview(year.id)) };
+    if (!year) return { year: null, classDays: await attendanceRepository.findClassDays(), units: [], gradeLevels: [], sections: [], subjects: [], courses: [], teachers: [] };
+    const [structure, classDays] = await Promise.all([repo.overview(year.id), attendanceRepository.findClassDays()]);
+    return { year, classDays, ...structure };
   },
 
   async createUnit(data) {
@@ -241,6 +243,12 @@ export const academicAdminService = {
   async updateCourse(courseId, data) {
     await assertTeacher(data.teacherId);
     if (!(await repo.updateCourse(courseId, data))) throw AppError.notFound('Curso no encontrado');
+    return this.overview();
+  },
+
+  /** Días en que hay clases (p. ej. un colegio de fines de semana agrega el sábado): la asistencia los toma solos. */
+  async setClassDays(admin, classDays) {
+    await attendanceRepository.saveClassDays(classDays);
     return this.overview();
   },
 };

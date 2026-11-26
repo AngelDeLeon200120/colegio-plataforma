@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useSearchParams } from 'react-router';
-import { AlertTriangle, CheckCheck, Clock, MessageSquare, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Clock, MessageSquare, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { FormError } from '@/components/ui/Field';
@@ -10,11 +10,30 @@ import { useMyCourses } from '@/features/gradebook/hooks';
 import { cn } from '@/lib/cn';
 import { formatDate, formatScore } from '@/lib/format';
 import { useAttendanceSheet, useRemoveAttendance, useSaveAttendance } from './hooks';
-import { ABSENT, MAX_NOTE, PRESENT, cellKey, changedDates, effectiveStatus, lastClassDay, noteOf, sheetDates, summarize, toDays, withChange } from './model';
+import {
+  ABSENT,
+  MAX_NOTE,
+  PRESENT,
+  cellKey,
+  changedDates,
+  effectiveStatus,
+  lastClassDay,
+  mondayOf,
+  noteOf,
+  shiftWeek,
+  summarize,
+  toDays,
+  unitDates,
+  weekBounds,
+  weekDates,
+  weekEnd,
+  withChange,
+} from './model';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const longDate = (date) => formatDate(date, { weekday: 'long', day: 'numeric', month: 'long' });
-const inputClass = 'h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm shadow-xs focus:ring-2 focus:ring-zinc-200 focus:outline-none';
+const inputClass =
+  'h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm shadow-xs focus:ring-2 focus:ring-zinc-200 focus:outline-none';
 
 // Bordes de hoja de cálculo
 const CELL = 'border-r border-b border-zinc-400';
@@ -56,7 +75,8 @@ function RemoveDayDialog({ date, courseId, onClose, onRemoved }) {
 /** Hoja de asistencia: una fila por estudiante y una columna por día, con check o equis y una nota opcional. */
 function AttendanceSheet({ sheet, courseId }) {
   const [changes, setChanges] = useState({}); // "fecha:estudiante" → { status?, note? } sin guardar
-  const [active, setActive] = useState(() => ({ row: 0, date: lastClassDay(sheet, sheetDates(sheet)) }));
+  const [week, setWeek] = useState(() => mondayOf(sheet.today)); // lunes de la semana que se ve
+  const [active, setActive] = useState(() => ({ row: 0, date: lastClassDay(sheet, weekDates(sheet, mondayOf(sheet.today))) }));
   const [notice, setNotice] = useState(null);
   const [removing, setRemoving] = useState(false);
   const save = useSaveAttendance(courseId);
@@ -64,13 +84,17 @@ function AttendanceSheet({ sheet, courseId }) {
   const noteRef = useRef(null);
 
   const { students } = sheet;
-  // Los días de clase de la semana entran solos (de lunes a viernes, o los que tenga el colegio)
-  const dates = useMemo(() => sheetDates(sheet), [sheet]);
+  // La hoja es semanal: entran solos los días de clase de la semana (de lunes a viernes, o los que tenga el colegio)
+  const dates = useMemo(() => weekDates(sheet, week), [sheet, week]);
+  const bounds = weekBounds(sheet);
   const touched = changedDates(changes);
+  // La nota sale de toda la unidad (es la que va al cuadro), aunque la hoja muestre una semana
+  const allDates = unitDates(sheet, changes);
   const dirty = touched.size > 0;
   const activeDate = dates.includes(active.date) ? active.date : lastClassDay(sheet, dates);
   const future = (date) => date > sheet.today;
-  const activeFuture = future(activeDate);
+  // Sin columnas (una semana sin días de clase en la unidad) o un día que aún no llega: no se marca
+  const activeFuture = future(activeDate) || !dates.length;
   const activeRow = clamp(active.row, 0, students.length - 1);
   const activeSaved = Boolean(sheet.days[activeDate]);
 
@@ -94,14 +118,16 @@ function AttendanceSheet({ sheet, courseId }) {
     setChanges((current) => withChange(sheet, current, date, studentId, patch));
   };
   const togglePresent = (date, studentId) =>
-    !future(date) && change(date, studentId, { status: effectiveStatus(sheet, changes, touched, date, studentId) === PRESENT ? ABSENT : PRESENT });
+    !future(date) &&
+    change(date, studentId, { status: effectiveStatus(sheet, changes, touched, date, studentId) === PRESENT ? ABSENT : PRESENT });
   const markAll = () => !activeFuture && students.forEach((student) => change(activeDate, student.id, { status: PRESENT }));
 
   const activeStudent = students[activeRow];
   const activeStatus = activeStudent && effectiveStatus(sheet, changes, touched, activeDate, activeStudent.id);
   const activeNote = activeStudent ? noteOf(sheet, changes, activeDate, activeStudent.id) : '';
   // Una nota en una celda sin marcar (p. ej. "Llegó tarde") cuenta como que asistió
-  const setNote = (note) => !activeFuture && change(activeDate, activeStudent.id, activeStatus || !note ? { note } : { note, status: PRESENT });
+  const setNote = (note) =>
+    !activeFuture && change(activeDate, activeStudent.id, activeStatus || !note ? { note } : { note, status: PRESENT });
   const arrivedLate = () => !activeFuture && change(activeDate, activeStudent.id, { status: PRESENT, note: 'Llegó tarde' });
 
   const onSave = () =>
@@ -112,7 +138,16 @@ function AttendanceSheet({ sheet, courseId }) {
       },
     });
 
+  /** Otra semana; las marcas sin guardar se conservan y se guardan juntas. */
+  const goWeek = (weeks) => {
+    const next = shiftWeek(week, weeks);
+    if (next < bounds.first || next > bounds.last) return;
+    setWeek(next);
+    setActive({ row: activeRow, date: lastClassDay(sheet, weekDates(sheet, next)) });
+  };
+
   const onKeyDown = (event) => {
+    if (!dates.length) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const col = dates.indexOf(activeDate);
     const moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], Enter: [1, 0] };
@@ -146,8 +181,23 @@ function AttendanceSheet({ sheet, courseId }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2 sm:px-6">
+        <div className="flex items-center rounded-md border border-zinc-200">
+          <Button size="sm" variant="ghost" onClick={() => goWeek(-1)} disabled={week <= bounds.first} aria-label="Semana anterior">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="min-w-28 px-1 text-center text-xs font-medium text-zinc-700">
+            {week === bounds.last ? 'Esta semana' : week === shiftWeek(bounds.last, -1) ? 'Semana pasada' : 'Semana'}
+            <span className="block text-[10px] font-normal text-zinc-500">
+              {formatDate(week, { day: 'numeric', month: 'short' })} al {formatDate(weekEnd(week), { day: 'numeric', month: 'short' })}
+            </span>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => goWeek(1)} disabled={week >= bounds.last} aria-label="Semana siguiente">
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
         <span className="text-sm font-medium text-zinc-900 first-letter:uppercase">{longDate(activeDate)}</span>
-        {activeFuture && <span className="text-xs text-zinc-500">Todavía no llega: se marca ese día</span>}
+        {!dates.length && <span className="text-xs text-zinc-500">Esta semana no tiene días de clase en la unidad</span>}
+        {activeFuture && dates.length > 0 && <span className="text-xs text-zinc-500">Todavía no llega: se marca ese día</span>}
         <Button size="sm" onClick={markAll} disabled={activeFuture}>
           <CheckCheck className="size-4" /> Todos asistieron
         </Button>
@@ -220,7 +270,12 @@ function AttendanceSheet({ sheet, courseId }) {
         <table className="border-separate border-spacing-0 border-t border-l border-zinc-400 text-sm">
           <thead>
             <tr>
-              <th className={cn(CELL, 'sticky -top-4 -left-4 z-30 w-11 min-w-11 bg-white px-1 py-1.5 text-center text-xs font-bold sm:-top-6 sm:-left-6')}>
+              <th
+                className={cn(
+                  CELL,
+                  'sticky -top-4 -left-4 z-30 w-11 min-w-11 bg-white px-1 py-1.5 text-center text-xs font-bold sm:-top-6 sm:-left-6',
+                )}
+              >
                 No.
               </th>
               <th
@@ -242,21 +297,36 @@ function AttendanceSheet({ sheet, courseId }) {
                   onSelect={() => setActive({ row: activeRow, date })}
                 />
               ))}
-              <th className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}>Asistencia</th>
+              <th
+                className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}
+                title="Días que asistió en esta semana"
+              >
+                Asistencia<span className="block text-[10px] font-normal text-zinc-500">semana</span>
+              </th>
               <th className={cn(CELL, HEAD, 'min-w-14 bg-white px-2 text-center text-xs font-bold')}>%</th>
-              <th className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}>
-                Nota<span className="block text-[10px] font-normal text-zinc-500">/{formatScore(sheet.maxScore)}</span>
+              <th
+                className={cn(CELL, HEAD, 'min-w-20 bg-white px-2 text-center text-xs font-bold')}
+                title="Con toda la asistencia de la unidad: es la que va al cuadro de notas"
+              >
+                Nota<span className="block text-[10px] font-normal text-zinc-500">unidad /{formatScore(sheet.maxScore)}</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {students.map((student, row) => {
-              const summary = summarize(sheet, changes, dates, student.id);
-              const good = summary.rate !== null && summary.rate >= sheet.goodAttendance;
+              const summary = summarize(sheet, changes, dates, student.id); // la semana que se ve
+              const unit = summarize(sheet, changes, allDates, student.id); // toda la unidad: la nota
+              const good = unit.rate !== null && unit.rate >= sheet.goodAttendance;
               const rowActive = row === activeRow;
               return (
                 <tr key={student.id}>
-                  <td className={cn(CELL, 'sticky -left-4 z-10 bg-white text-center text-xs tabular-nums sm:-left-6', rowActive && 'bg-brand-50')}>
+                  <td
+                    className={cn(
+                      CELL,
+                      'sticky -left-4 z-10 bg-white text-center text-xs tabular-nums sm:-left-6',
+                      rowActive && 'bg-brand-50',
+                    )}
+                  >
                     {row + 1}
                   </td>
                   <th
@@ -289,7 +359,9 @@ function AttendanceSheet({ sheet, courseId }) {
                       />
                     );
                   })}
-                  <td className={cn(CELL, 'px-2 text-center tabular-nums')}>{summary.counted ? `${summary.present}/${summary.counted}` : ''}</td>
+                  <td className={cn(CELL, 'px-2 text-center tabular-nums')}>
+                    {summary.counted ? `${summary.present}/${summary.counted}` : ''}
+                  </td>
                   <td className={cn(CELL, 'px-2 text-center tabular-nums')}>
                     {summary.rate === null ? '' : `${formatScore(Math.round(summary.rate * 100))}%`}
                   </td>
@@ -297,11 +369,17 @@ function AttendanceSheet({ sheet, courseId }) {
                     className={cn(
                       CELL,
                       'px-2 text-center font-semibold tabular-nums',
-                      summary.adjusted ? 'text-blue-700' : good ? 'text-emerald-700' : 'text-red-600',
+                      unit.adjusted ? 'text-blue-700' : good ? 'text-emerald-700' : 'text-red-600',
                     )}
-                    title={summary.adjusted ? 'Cambiada con "Mejora" en el cuadro de notas' : undefined}
+                    title={
+                      unit.adjusted
+                        ? 'Cambiada con "Mejora" en el cuadro de notas'
+                        : unit.counted
+                          ? `En la unidad: ${unit.present}/${unit.counted} (${Math.round(unit.rate * 100)}%)`
+                          : undefined
+                    }
                   >
-                    {summary.score === null ? '' : formatScore(summary.score)}
+                    {unit.score === null ? '' : formatScore(unit.score)}
                   </td>
                 </tr>
               );
@@ -310,7 +388,10 @@ function AttendanceSheet({ sheet, courseId }) {
           <tfoot>
             <tr>
               <td className={cn(CELL, 'sticky -left-4 z-10 bg-zinc-100 sm:-left-6')} />
-              <th scope="row" className={cn(CELL, 'sticky left-7 z-10 bg-zinc-100 px-2 py-1 text-right text-xs font-semibold text-zinc-600 sm:left-5')}>
+              <th
+                scope="row"
+                className={cn(CELL, 'sticky left-7 z-10 bg-zinc-100 px-2 py-1 text-right text-xs font-semibold text-zinc-600 sm:left-5')}
+              >
                 Asistencia
               </th>
               {dates.map((date) => {
@@ -440,7 +521,10 @@ function DayCell({ id, status, note, future, active, changed, label, onClick, on
           onNote();
         }}
         aria-label={`${note ? 'Ver la nota' : 'Poner nota'} de ${label}`}
-        className={cn('absolute inset-y-0 right-0 flex w-5 items-center justify-center', !note && !active && 'opacity-0 group-hover:opacity-100')}
+        className={cn(
+          'absolute inset-y-0 right-0 flex w-5 items-center justify-center',
+          !note && !active && 'opacity-0 group-hover:opacity-100',
+        )}
       >
         <MessageSquare className={cn('size-3', note ? 'fill-amber-300 text-amber-600' : 'text-zinc-400')} />
       </button>

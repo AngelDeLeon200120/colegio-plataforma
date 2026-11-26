@@ -20,6 +20,7 @@ export const adminApi = {
   unlinkGuardian: (id, guardianId) => api(`/admin/students/${id}/guardians/${guardianId}`, { method: 'DELETE' }),
 
   academic: () => api('/admin/academic'),
+  setClassDays: (classDays) => api('/admin/academic/class-days', { method: 'PUT', body: { classDays } }),
   createUnit: (body) => api('/admin/academic/units', { method: 'POST', body }),
   unitAction: (id, action) => api(`/admin/academic/units/${id}/${action}`, { method: 'POST' }),
   createGradeLevel: (body) => api('/admin/academic/grade-levels', { method: 'POST', body }),

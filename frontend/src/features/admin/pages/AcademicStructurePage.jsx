@@ -72,7 +72,12 @@ function QuickCreateDialog({ title, fields, submitLabel, mutationFn, toBody, onC
           <Field key={field.key} label={field.label} optional={field.optional} hint={field.hint}>
             {(id) =>
               field.options ? (
-                <select id={id} value={values[field.key]} onChange={(e) => setValues({ ...values, [field.key]: e.target.value })} className={inputClass}>
+                <select
+                  id={id}
+                  value={values[field.key]}
+                  onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                  className={inputClass}
+                >
                   {field.optional && <option value="">—</option>}
                   {!field.optional && <option value="">Elegir…</option>}
                   {field.options.map((option) => (
@@ -97,6 +102,45 @@ function QuickCreateDialog({ title, fields, submitLabel, mutationFn, toBody, onC
         ))}
       </form>
     </Dialog>
+  );
+}
+
+const WEEKDAYS = [1, 2, 3, 4, 5];
+const WEEKEND = [
+  { day: 6, label: 'Sábado' },
+  { day: 0, label: 'Domingo' },
+];
+
+/** De lunes a viernes siempre hay clases; un colegio de fines de semana agrega el sábado o el domingo. */
+function ClassDays({ classDays }) {
+  const update = useAdminMutation(adminApi.setClassDays);
+  const toggle = (day) => {
+    const weekend = WEEKEND.map((item) => item.day).filter((item) => (item === day ? !classDays.includes(item) : classDays.includes(item)));
+    update.mutate([...WEEKDAYS, ...weekend]);
+  };
+
+  return (
+    <Card
+      title="Días de clase"
+      description="De lunes a viernes por defecto. Si el colegio también da clases en fin de semana, actívalo: la asistencia de los docentes lo toma sola."
+    >
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+        <span className="text-sm text-zinc-700">Lunes a viernes</span>
+        {WEEKEND.map(({ day, label }) => (
+          <label key={day} className="flex items-center gap-2 text-sm text-zinc-900">
+            <input
+              type="checkbox"
+              checked={classDays.includes(day)}
+              disabled={update.isPending}
+              onChange={() => toggle(day)}
+              className="size-4 accent-zinc-900"
+            />
+            {label}
+          </label>
+        ))}
+        {update.error && <span className="text-xs text-red-600">{update.error.message}</span>}
+      </div>
+    </Card>
   );
 }
 
@@ -202,7 +246,11 @@ export function AcademicStructurePage() {
         { key: 'name', label: 'Sección', placeholder: 'ej. A' },
         { key: 'homeroomTeacherId', label: 'Docente guía', options: teacherOptions, optional: true },
       ],
-      toBody: (v) => ({ gradeLevelId: Number(v.gradeLevelId), name: v.name.trim(), homeroomTeacherId: v.homeroomTeacherId ? Number(v.homeroomTeacherId) : undefined }),
+      toBody: (v) => ({
+        gradeLevelId: Number(v.gradeLevelId),
+        name: v.name.trim(),
+        homeroomTeacherId: v.homeroomTeacherId ? Number(v.homeroomTeacherId) : undefined,
+      }),
     },
     subject: {
       title: 'Nueva materia',
@@ -269,8 +317,18 @@ export function AcademicStructurePage() {
         </ul>
       </Card>
 
+      <ClassDays classDays={data.classDays} />
+
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Grados y secciones" action={<div className="flex gap-1.5">{addButton('grade', 'Grado')}{addButton('section', 'Sección')}</div>}>
+        <Card
+          title="Grados y secciones"
+          action={
+            <div className="flex gap-1.5">
+              {addButton('grade', 'Grado')}
+              {addButton('section', 'Sección')}
+            </div>
+          }
+        >
           <ul className="divide-y divide-zinc-100">
             {data.sections.length === 0 && <li className="px-4 py-6 text-center text-sm text-zinc-500">Sin secciones en el ciclo.</li>}
             {data.sections.map((section) => (
@@ -298,7 +356,11 @@ export function AcademicStructurePage() {
         </Card>
       </div>
 
-      <Card title="Cursos" description="Un curso es una materia en una sección, con su docente. Cambiar el docente le pasa sus actividades y su cuadro de notas." action={addButton('course', 'Curso')}>
+      <Card
+        title="Cursos"
+        description="Un curso es una materia en una sección, con su docente. Cambiar el docente le pasa sus actividades y su cuadro de notas."
+        action={addButton('course', 'Curso')}
+      >
         <ul className="divide-y divide-zinc-100">
           {data.courses.length === 0 && <li className="px-4 py-6 text-center text-sm text-zinc-500">Sin cursos asignados.</li>}
           {data.courses.map((course) => (

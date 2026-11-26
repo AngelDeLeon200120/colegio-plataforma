@@ -74,6 +74,13 @@ export const guardianBody = z.object({
 
 // --- Estructura académica ----------------------------------------------------
 export const unitBody = z.object({ name: z.string().trim().min(1).max(60), startsOn: isoDate, endsOn: isoDate });
+// Días de clase de la semana (0 = domingo … 6 = sábado); por defecto, de lunes a viernes
+export const classDaysBody = z.object({
+  classDays: z
+    .array(z.number().int().min(0).max(6))
+    .min(1, 'Elige al menos un día')
+    .transform((days) => [...new Set(days)].sort()),
+});
 export const unitActionParams = z.object({ id, action: z.enum(['activate', 'close', 'reopen']) });
 export const gradeLevelBody = z.object({
   name: z.string().trim().min(1).max(60),

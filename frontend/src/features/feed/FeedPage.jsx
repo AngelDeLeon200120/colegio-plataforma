@@ -394,7 +394,8 @@ function UpcomingPanel() {
       color: CATEGORY_LOOK[event.category].color,
       icon: CalendarDays,
     })),
-    ...(data?.meetings ?? []).map((meeting) => ({
+    // Las reuniones que ya terminaron no son "próximamente"
+    ...(data?.meetings ?? []).filter((meeting) => new Date(meeting.endsAt) > new Date()).map((meeting) => ({
       key: `m${meeting.id}`,
       at: meeting.startsAt,
       title: meeting.title,

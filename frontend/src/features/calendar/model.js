@@ -85,6 +85,7 @@ export function rangeTitle(view, anchor) {
 export function toEntries(agenda, show) {
   if (!agenda) return [];
   const entries = [];
+  const now = Date.now();
   if (show.events) {
     for (const event of agenda.events) {
       entries.push({
@@ -109,6 +110,8 @@ export function toEntries(agenda, show) {
         end: new Date(meeting.endsAt),
         allDay: false,
         color: MEETING_COLOR,
+        // Ya terminó: se ve tachada
+        past: new Date(meeting.endsAt).getTime() < now,
         source: meeting,
       });
     }

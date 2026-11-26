@@ -121,13 +121,13 @@ function MeetingRow({ meeting, focused, onEdit }) {
   return (
     <li
       id={`meeting-${meeting.id}`}
-      className={cn('flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap', focused && 'bg-violet-50/60', phase === 'cancelled' && 'opacity-60')}
+      className={cn('flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap', focused && 'bg-violet-50/60', (phase === 'cancelled' || phase === 'past') && 'opacity-60')}
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: meeting.course.color ?? '#7c3aed' }} aria-hidden>
         <Video className="size-5" />
       </span>
       <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-3.25rem)]">
-        <p className={cn('flex items-center gap-2 text-sm font-medium text-zinc-900', phase === 'cancelled' && 'line-through')}>
+        <p className={cn('flex items-center gap-2 text-sm font-medium text-zinc-900', (phase === 'cancelled' || phase === 'past') && 'line-through')}>
           <span className="truncate">{meeting.title}</span>
           {phase === 'live' && (
             <Badge tone="red" dot>

@@ -50,6 +50,7 @@ function EntryChip({ entry, onOpen, compact }) {
         'flex w-full min-w-0 items-center gap-1 rounded px-1.5 text-left text-xs font-medium text-white hover:brightness-95',
         compact ? 'h-5' : 'h-6',
         entry.kind === 'activity' && 'border-l-4 bg-white! text-zinc-800! ring-1 ring-zinc-200 ring-inset',
+        entry.past && 'line-through opacity-50',
       )}
       style={entry.kind === 'activity' ? { borderLeftColor: entry.color } : { backgroundColor: entry.color }}
     >
@@ -151,6 +152,7 @@ function TimeGrid({ days, entries, canManage, onOpen, onCreate }) {
                       className={cn(
                         'absolute overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs shadow-xs hover:shadow-md',
                         entry.kind === 'activity' ? 'bg-white text-zinc-800 ring-1 ring-zinc-200' : 'text-zinc-900',
+                        entry.past && 'line-through opacity-50',
                       )}
                       style={{
                         top: startTop,
@@ -263,7 +265,7 @@ function EntryDetails({ entry, canManage, onEdit, onClose }) {
       open
       onClose={onClose}
       title={entry.kind === 'activity' ? source.title : entry.title}
-      description={when}
+      description={entry.past ? `${when} · ya terminó` : when}
       footer={
         <>
           {entry.kind === 'event' && canManage && (
@@ -278,7 +280,7 @@ function EntryDetails({ entry, canManage, onEdit, onClose }) {
               </Button>
             </Link>
           )}
-          {entry.kind === 'meeting' && (
+          {entry.kind === 'meeting' && !entry.past && (
             <a href={source.joinUrl} target="_blank" rel="noopener noreferrer">
               <Button variant="primary">
                 <Video className="size-4" /> Unirse

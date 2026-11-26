@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/features/auth/store';
 import { gradebookApi } from './api';
-import { cellKey } from './gridModel';
+import { cellKey, sheetOrder } from './gridModel';
 
 export const gradebookKeys = {
   courses: ['me', 'courses'],
@@ -19,6 +19,8 @@ export function useGradebookSheet(courseId, unitId) {
   return useQuery({
     queryKey: gradebookKeys.sheet(courseId, unitId),
     queryFn: () => gradebookApi.getSheet(courseId, unitId),
+    // Asistencia se muestra al final, a la par de la Nota final (la hoja, el teclado y la barra usan este orden)
+    select: (sheet) => ({ ...sheet, items: sheetOrder(sheet.items) }),
     // La hoja tiene sus propios cambios locales: no recargar por detrás; solo al abrirla o si cambian sus columnas
     staleTime: Infinity,
     refetchOnMount: 'always',

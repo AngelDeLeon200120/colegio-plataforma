@@ -85,6 +85,7 @@ Roles abreviados en las tablas: **A** Admin · **T** Profesor · **S** Alumno ·
 | POST | `/admin/academic/units` | A | `{ name, startsOn, endsOn }`; el número de unidad es el siguiente |
 | POST | `/admin/academic/units/:id/activate` · `close` · `reopen` | A | `SCHEDULED → ACTIVE`, `ACTIVE → CLOSED`, `CLOSED → ACTIVE`. Una sola activa por ciclo (`409 UNIT_ALREADY_ACTIVE`). Emite `unit:status_changed` |
 | POST | `/admin/academic/grade-levels` · `sections` · `subjects` | A | Catálogos (duplicados → `409` con mensaje claro) |
+| PATCH | `/admin/academic/units/:id` · `grade-levels/:id` · `sections/:id` · `subjects/:id` | A | Editar con el mismo cuerpo que al crear (unidad: nombre y fechas; sección sin `homeroomTeacherId` queda sin guía). `404` si no existe, `409` si duplica |
 | POST · PATCH | `/admin/academic/courses[/:id]` | A | Sección + materia + docente; `PATCH { teacherId, isActive }` reasigna |
 | GET | `/me/courses` | T, A | Cursos del ciclo activo (docente: los asignados) |
 

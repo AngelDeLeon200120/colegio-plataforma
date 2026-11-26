@@ -131,6 +131,51 @@ class AcademicAdminRepository extends BaseRepository {
     return result.insertId;
   }
 
+  // --- Edición (cada tabla es del colegio: school_id en el WHERE) ---------------
+  async exists(table, id) {
+    return Boolean(await this.one(`SELECT id FROM ${table} WHERE school_id = ? AND id = ?`, [this.schoolId, id]));
+  }
+
+  async updateUnit(unitId, { name, startsOn, endsOn }) {
+    await this.query('UPDATE academic_units SET name = ?, starts_on = ?, ends_on = ? WHERE school_id = ? AND id = ?', [
+      name,
+      startsOn,
+      endsOn,
+      this.schoolId,
+      unitId,
+    ]);
+  }
+
+  async updateGradeLevel(gradeLevelId, { name, shortName, educationLevel }) {
+    await this.query('UPDATE grade_levels SET name = ?, short_name = ?, education_level = ? WHERE school_id = ? AND id = ?', [
+      name,
+      shortName,
+      educationLevel ?? null,
+      this.schoolId,
+      gradeLevelId,
+    ]);
+  }
+
+  async updateSection(sectionId, { gradeLevelId, name, homeroomTeacherId }) {
+    await this.query('UPDATE sections SET grade_level_id = ?, name = ?, homeroom_teacher_id = ? WHERE school_id = ? AND id = ?', [
+      gradeLevelId,
+      name,
+      homeroomTeacherId ?? null,
+      this.schoolId,
+      sectionId,
+    ]);
+  }
+
+  async updateSubject(subjectId, { code, name, color }) {
+    await this.query('UPDATE subjects SET code = ?, name = ?, color = COALESCE(?, color) WHERE school_id = ? AND id = ?', [
+      code,
+      name,
+      color ?? null,
+      this.schoolId,
+      subjectId,
+    ]);
+  }
+
   async isActiveTeacher(userId) {
     const row = await this.one(`SELECT id FROM users WHERE school_id = ? AND id = ? AND role = 'TEACHER' AND status = 'ACTIVE'`, [this.schoolId, userId]);
     return Boolean(row);
@@ -176,6 +221,10 @@ async function friendly(work, messages) {
   }
 }
 
+async function requireRow(table, id, message) {
+  if (!(await repo.exists(table, id))) throw AppError.notFound(message);
+}
+
 async function assertTeacher(teacherId) {
   if (teacherId && !(await repo.isActiveTeacher(teacherId))) throw AppError.notFound('Docente no encontrado o inactivo');
 }
@@ -217,8 +266,21 @@ export const academicAdminService = {
     return this.overview();
   },
 
+  async updateUnit(unitId, data) {
+    if (data.endsOn <= data.startsOn) throw AppError.validation([{ field: 'endsOn', issue: 'Debe ser posterior al inicio' }]);
+    await requireRow('academic_units', unitId, 'Unidad no encontrada');
+    await repo.updateUnit(unitId, data);
+    return this.overview();
+  },
+
   async createGradeLevel(data) {
     await friendly(() => repo.insertGradeLevel(data), { uq_grade_levels_name: 'Ya existe un grado con ese nombre' });
+    return this.overview();
+  },
+
+  async updateGradeLevel(gradeLevelId, data) {
+    await requireRow('grade_levels', gradeLevelId, 'Grado no encontrado');
+    await friendly(() => repo.updateGradeLevel(gradeLevelId, data), { uq_grade_levels_name: 'Ya existe un grado con ese nombre' });
     return this.overview();
   },
 
@@ -229,8 +291,22 @@ export const academicAdminService = {
     return this.overview();
   },
 
+  async updateSection(sectionId, data) {
+    await requireRow('sections', sectionId, 'Sección no encontrada');
+    await requireRow('grade_levels', data.gradeLevelId, 'Grado no encontrado');
+    await assertTeacher(data.homeroomTeacherId);
+    await friendly(() => repo.updateSection(sectionId, data), { uq_sections_name: 'Ese grado ya tiene una sección con ese nombre' });
+    return this.overview();
+  },
+
   async createSubject(data) {
     await friendly(() => repo.insertSubject(data), { uq_subjects_code: 'Ya existe una materia con ese código' });
+    return this.overview();
+  },
+
+  async updateSubject(subjectId, data) {
+    await requireRow('subjects', subjectId, 'Materia no encontrada');
+    await friendly(() => repo.updateSubject(subjectId, data), { uq_subjects_code: 'Ya existe una materia con ese código' });
     return this.overview();
   },
 

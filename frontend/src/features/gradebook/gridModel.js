@@ -60,6 +60,20 @@ export function accumulatedTotal(items, valueOf) {
 /** Parcial y Evaluación: van después del Total. */
 export const isExam = (item) => item.kind === 'PARTIAL' || item.kind === 'EVALUATION';
 
+export const isAttendance = (item) => item.kind === 'ATTENDANCE';
+
+/**
+ * Orden de las columnas en la hoja: actividades, (Total), Parcial y Evaluación, (Nota final) y al último Asistencia.
+ * Asistencia sigue sumando al Total; solo se muestra al final, a la par de la Nota final.
+ */
+export function sheetOrder(items) {
+  const rank = (item) => (isAttendance(item) ? 2 : isExam(item) ? 1 : 0);
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
+    .map(({ item }) => item);
+}
+
 /** Asistencia, Parcial y Evaluación: columnas por defecto; solo cambian sus puntos y si se publican. */
 export const isFixed = (item) => isExam(item) || item.kind === 'ATTENDANCE';
 

@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate, useSearchParams } from 'react-router';
 import { AppShell } from '@/components/layout/AppShell';
 import { CoursePage } from '@/features/activities/pages/CoursePage';
 import { CoursesPage } from '@/features/activities/pages/CoursesPage';
-import { DashboardPage } from '@/features/activities/pages/DashboardPage';
 import { AcademicStructurePage } from '@/features/admin/pages/AcademicStructurePage';
 import { PeoplePage } from '@/features/admin/pages/PeoplePage';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -25,6 +24,7 @@ import { MessagesPage } from '@/features/messages/MessagesPage';
 import { StaffChatPage } from '@/features/staffchat/StaffChatPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
 import { ReportCardPage } from '@/features/reportcard/ReportCardPage';
+import { StudentSummaryPage } from '@/features/summary/StudentSummaryPage';
 import { ReviewSubmissionsPage } from '@/features/submissions/pages/ReviewSubmissionsPage';
 
 const HOME_BY_ROLE = {
@@ -67,7 +67,6 @@ export const router = createBrowserRouter([
           {
             element: <RequireAuth roles={['TEACHER', 'ADMIN']} />,
             children: [
-              { path: 'dashboard', element: <DashboardPage /> },
               { path: 'courses', element: <CoursesPage /> },
               { path: 'courses/:courseId', element: <CoursePage /> },
               { path: 'conduct', element: <ConductPage /> },
@@ -81,6 +80,11 @@ export const router = createBrowserRouter([
           {
             element: <RequireAuth roles={['TEACHER']} />,
             children: [{ path: 'attendance', element: <AttendancePage /> }],
+          },
+          {
+            // Resumen: solo para estudiantes (sus cursos, tareas pendientes, notas recientes y reuniones)
+            element: <RequireAuth roles={['STUDENT']} />,
+            children: [{ path: 'dashboard', element: <StudentSummaryPage /> }],
           },
           {
             element: <RequireAuth roles={['STUDENT', 'PARENT']} />,

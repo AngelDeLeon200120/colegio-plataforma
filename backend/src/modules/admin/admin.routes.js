@@ -63,6 +63,18 @@ adminRouter.get('/admin/academic', async (req, res) => {
 adminRouter.post('/admin/academic/units', validate({ body: schemas.unitBody }), async (req, res) => {
   res.status(201).json({ data: await academicAdminService.createUnit(req.valid.body) });
 });
+adminRouter.patch('/admin/academic/units/:id', validate({ params: schemas.idParams, body: schemas.unitBody }), async (req, res) => {
+  res.json({ data: await academicAdminService.updateUnit(req.valid.params.id, req.valid.body) });
+});
+adminRouter.patch('/admin/academic/grade-levels/:id', validate({ params: schemas.idParams, body: schemas.gradeLevelBody }), async (req, res) => {
+  res.json({ data: await academicAdminService.updateGradeLevel(req.valid.params.id, req.valid.body) });
+});
+adminRouter.patch('/admin/academic/sections/:id', validate({ params: schemas.idParams, body: schemas.sectionBody }), async (req, res) => {
+  res.json({ data: await academicAdminService.updateSection(req.valid.params.id, req.valid.body) });
+});
+adminRouter.patch('/admin/academic/subjects/:id', validate({ params: schemas.idParams, body: schemas.subjectBody }), async (req, res) => {
+  res.json({ data: await academicAdminService.updateSubject(req.valid.params.id, req.valid.body) });
+});
 adminRouter.post('/admin/academic/units/:id/:action', validate({ params: schemas.unitActionParams }), async (req, res) => {
   res.json({ data: await academicAdminService.changeUnitStatus(req.user, req.valid.params.id, req.valid.params.action) });
 });

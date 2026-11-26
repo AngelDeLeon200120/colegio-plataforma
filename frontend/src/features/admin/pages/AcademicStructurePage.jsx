@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Lock, Plus } from 'lucide-react';
+import { AlertTriangle, Lock, Pencil, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -190,7 +190,7 @@ function CourseTeacher({ course, teachers }) {
 
 export function AcademicStructurePage() {
   const { data, isLoading, isError, error } = useAcademicStructure();
-  const [dialog, setDialog] = useState(null);
+  const [dialog, setDialog] = useState(null); // { kind, item? }: sin item crea, con item edita
 
   if (isLoading) {
     return (
@@ -277,10 +277,51 @@ export function AcademicStructurePage() {
   };
 
   const addButton = (kind, label) => (
-    <Button size="sm" onClick={() => setDialog(kind)}>
+    <Button size="sm" onClick={() => setDialog({ kind })}>
       <Plus className="size-3.5" /> {label}
     </Button>
   );
+  const editButton = (kind, item, label) => (
+    <Button size="sm" variant="ghost" onClick={() => setDialog({ kind, item })} aria-label={`Editar ${label}`} title="Editar">
+      <Pencil className="size-3.5" />
+    </Button>
+  );
+
+  // Editar usa el mismo formulario que crear, con los datos actuales y su propio guardado
+  const day = (value) => String(value ?? '').slice(0, 10);
+  const editing = {
+    unit: (unit) => ({
+      title: `Editar ${unit.name}`,
+      mutationFn: (body) => adminApi.updateUnit(unit.id, body),
+      initial: { name: unit.name, startsOn: day(unit.startsOn), endsOn: day(unit.endsOn) },
+    }),
+    grade: (grade) => ({
+      title: `Editar ${grade.name}`,
+      mutationFn: (body) => adminApi.updateGradeLevel(grade.id, body),
+      initial: { name: grade.name, shortName: grade.shortName, educationLevel: grade.educationLevel ?? '' },
+    }),
+    section: (section) => ({
+      title: `Editar ${section.label}`,
+      mutationFn: (body) => adminApi.updateSection(section.id, body),
+      initial: {
+        gradeLevelId: String(section.gradeLevelId),
+        name: section.name,
+        homeroomTeacherId: section.homeroomTeacherId ? String(section.homeroomTeacherId) : '',
+      },
+    }),
+    subject: (subject) => ({
+      title: `Editar ${subject.name}`,
+      mutationFn: (body) => adminApi.updateSubject(subject.id, body),
+      initial: { name: subject.name, code: subject.code, color: subject.color ?? '#16a34a' },
+    }),
+  };
+  const dialogProps = (() => {
+    if (!dialog) return null;
+    const base = dialogs[dialog.kind];
+    if (!dialog.item) return base;
+    const { initial, ...rest } = editing[dialog.kind](dialog.item);
+    return { ...base, ...rest, submitLabel: 'Guardar', fields: base.fields.map((field) => ({ ...field, initial: initial[field.key] })) };
+  })();
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 overflow-y-auto px-4 py-6 sm:px-6">
@@ -311,6 +352,7 @@ export function AcademicStructurePage() {
                   {formatDate(unit.startsOn)} al {formatDate(unit.endsOn)}
                 </p>
               </div>
+              {editButton('unit', unit, unit.name)}
               <UnitActions unit={unit} />
             </li>
           ))}
@@ -333,14 +375,34 @@ export function AcademicStructurePage() {
             {data.sections.length === 0 && <li className="px-4 py-6 text-center text-sm text-zinc-500">Sin secciones en el ciclo.</li>}
             {data.sections.map((section) => (
               <li key={section.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="font-medium">{section.label}</span>
                   {section.homeroomTeacher && <span className="text-zinc-500"> · guía: {section.homeroomTeacher}</span>}
                 </span>
                 <span className="text-xs text-zinc-500 tabular-nums">{section.studentCount} estudiantes</span>
+                {editButton('section', section, `la sección ${section.label}`)}
               </li>
             ))}
           </ul>
+          {data.gradeLevels.length > 0 && (
+            <div className="border-t border-zinc-100 px-4 py-3">
+              <p className="mb-1.5 text-xs font-medium text-zinc-500">Grados</p>
+              <div className="flex flex-wrap gap-1.5">
+                {data.gradeLevels.map((grade) => (
+                  <button
+                    key={grade.id}
+                    type="button"
+                    onClick={() => setDialog({ kind: 'grade', item: grade })}
+                    title={`Editar ${grade.name}`}
+                    className="flex items-center gap-1 rounded-full border border-zinc-200 px-2.5 py-0.5 text-xs text-zinc-700 hover:bg-zinc-50"
+                  >
+                    {grade.name}
+                    <Pencil className="size-3 text-zinc-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card title="Materias" action={addButton('subject', 'Materia')}>
@@ -350,6 +412,7 @@ export function AcademicStructurePage() {
                 <span className="size-3 rounded-full" style={{ backgroundColor: subject.color ?? '#a1a1aa' }} aria-hidden />
                 <span className="flex-1 font-medium">{subject.name}</span>
                 <span className="font-mono text-xs text-zinc-500">{subject.code}</span>
+                {editButton('subject', subject, subject.name)}
               </li>
             ))}
           </ul>
@@ -374,7 +437,7 @@ export function AcademicStructurePage() {
         </ul>
       </Card>
 
-      {dialog && <QuickCreateDialog {...dialogs[dialog]} onClose={() => setDialog(null)} />}
+      {dialogProps && <QuickCreateDialog {...dialogProps} onClose={() => setDialog(null)} />}
     </div>
   );
 }

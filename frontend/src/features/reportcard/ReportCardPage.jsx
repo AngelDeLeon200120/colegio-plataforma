@@ -1,25 +1,12 @@
 import { useSearchParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Lock, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StudentSwitcher } from '@/features/homework/components/StudentSwitcher';
 import { useHomeworkLiveUpdates, useViewedStudent } from '@/features/homework/hooks';
-import { api } from '@/lib/apiClient';
 import { cn } from '@/lib/cn';
 import { formatScore } from '@/lib/format';
-
-function useReportCard(studentId, unitId, enabled) {
-  const params = new URLSearchParams();
-  if (studentId) params.set('studentId', studentId);
-  if (unitId) params.set('unitId', unitId);
-  return useQuery({
-    queryKey: ['report-card', studentId ?? 'me', unitId ?? 'current'],
-    queryFn: () => api(`/me/report-card${params.toString() ? `?${params}` : ''}`),
-    enabled,
-    placeholderData: (previous) => previous,
-  });
-}
+import { useReportCard } from './hooks';
 
 // El color depende del rendimiento sobre lo publicado, no de la zona parcial
 const toneFor = (percent, passing) => (percent === null ? 'text-zinc-400' : percent < passing ? 'text-red-600' : 'text-emerald-700');

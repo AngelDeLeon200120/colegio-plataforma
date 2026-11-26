@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { cn } from '@/lib/cn';
 import { formatDate, formatMoney, formatScore } from '@/lib/format';
-import { ERROR_LABELS, PASSING_SCORE, average, cellText, isExam, isFixed, parseInput, parseTsv, round, studentTotals, toTsv } from '../gridModel';
+import { ERROR_LABELS, PASSING_SCORE, average, cellText, isAttendance, isExam, isFixed, parseInput, parseTsv, round, studentTotals, toTsv } from '../gridModel';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -108,7 +108,9 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
   const { items, students, readOnly, totalLimit } = sheet;
   // Parcial y Evaluación van al final, después del Total (el servidor ya las envía en ese orden)
   const hasExams = totalLimit !== null && totalLimit !== undefined;
-  const regularCount = items.filter((item) => !isExam(item)).length;
+  // Columnas en tres tramos: actividades | Total | Parcial y Evaluación | Nota final | Asistencia
+  const regularCount = items.filter((item) => !isExam(item) && !isAttendance(item)).length;
+  const examEnd = regularCount + items.filter(isExam).length;
   const { state, dispatch, getCell, setCells, undo } = grid;
   const containerRef = useRef(null);
   const dragging = useRef(false);
@@ -521,13 +523,14 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
               </th>
               {hasExams && (
                 <>
-                  {items.slice(regularCount).map((item, index) => renderHeader(item, regularCount + index))}
+                  {items.slice(regularCount, examEnd).map((item, index) => renderHeader(item, regularCount + index))}
                   <th className="sticky top-0 z-20 w-24 min-w-24 border-b border-zinc-200 bg-zinc-100 px-2 py-1.5 text-right">
                     <span className="block text-xs font-semibold text-zinc-800">Nota final</span>
                     <span className="mt-0.5 block text-[11px] font-normal text-zinc-500 tabular-nums">/100</span>
                   </th>
                 </>
               )}
+              {items.slice(examEnd).map((item, index) => renderHeader(item, examEnd + index))}
             </tr>
           </thead>
 
@@ -578,7 +581,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                   </td>
                   {hasExams && (
                     <>
-                      {items.slice(regularCount).map((item, index) => renderCell(student, row, item, regularCount + index, { rowSelected, obscured }))}
+                      {items.slice(regularCount, examEnd).map((item, index) => renderCell(student, row, item, regularCount + index, { rowSelected, obscured }))}
                       <td
                         className={cn(
                           'border-b border-zinc-200 bg-zinc-100 px-2 text-right font-bold tabular-nums',
@@ -590,6 +593,7 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
                       </td>
                     </>
                   )}
+                  {items.slice(examEnd).map((item, index) => renderCell(student, row, item, examEnd + index, { rowSelected, obscured }))}
                 </tr>
               );
             })}
@@ -610,12 +614,13 @@ export function GradeGrid({ sheet, grid, onEditItem, onAddItem, payment }) {
               </td>
               {hasExams && (
                 <>
-                  {items.slice(regularCount).map(renderMean)}
+                  {items.slice(regularCount, examEnd).map(renderMean)}
                   <td className="sticky bottom-0 z-10 border-t border-zinc-200 bg-zinc-100 px-2 text-right text-xs font-semibold tabular-nums">
                     {formatScore(round(average(finals)))}
                   </td>
                 </>
               )}
+              {items.slice(examEnd).map(renderMean)}
             </tr>
           </tfoot>
         </table>

@@ -65,12 +65,11 @@ export const noteOf = (sheet, changes, date, studentId) => changes[cellKey(date,
 /** Días con alguna marca o nota sin guardar. */
 export const changedDates = (changes) => new Set(Object.keys(changes).map((key) => key.split(':')[0]));
 
-/** Aplica un cambio { status?, note? }; volver a lo guardado (o quitar el check de un día nuevo) no es un cambio. */
+/** Aplica un cambio { status?, note? }; volver a lo guardado (o dejar vacía una celda que no tenía marca) no es un cambio. */
 export function withChange(sheet, changes, date, studentId, patch) {
   const key = cellKey(date, studentId);
   const next = { ...changes[key], ...patch };
-  const baseStatus = savedStatus(sheet, date, studentId) ?? (sheet.days[date] ? null : ABSENT);
-  if ((next.status === EMPTY ? null : next.status) === baseStatus) delete next.status;
+  if ((next.status === EMPTY ? null : next.status) === savedStatus(sheet, date, studentId)) delete next.status;
   if (next.note === savedNote(sheet, date, studentId)) delete next.note;
 
   const result = { ...changes, [key]: next };
@@ -79,14 +78,11 @@ export function withChange(sheet, changes, date, studentId, patch) {
 }
 
 /**
- * Lo que cuenta de un día para un estudiante. En un día nuevo con algún cambio, quien no tiene check faltó
- * (así se guardará); en un día ya guardado, sin marca no cuenta (p. ej. se inscribió después).
+ * Lo que cuenta de un día para un estudiante: solo lo que el docente marcó, celda por celda. Una celda sin marca
+ * no cuenta (ni en un día nuevo: marcar a uno no les pone ✗ a los demás).
  */
-export function effectiveStatus(sheet, changes, touched, date, studentId) {
-  if (changes[cellKey(date, studentId)]?.status === EMPTY) return null;
-  const status = statusOf(sheet, changes, date, studentId);
-  if (status) return status;
-  return !sheet.days[date] && touched.has(date) ? ABSENT : null;
+export function effectiveStatus(sheet, changes, _touched, date, studentId) {
+  return statusOf(sheet, changes, date, studentId);
 }
 
 export function summarize(sheet, changes, dates, studentId) {
@@ -105,25 +101,18 @@ export function summarize(sheet, changes, dates, studentId) {
   return { ...summary, counted, rate, score: adjusted ? sheet.adjusted[studentId] : computed, adjusted };
 }
 
-/**
- * Cambios → días para guardar. Un día nuevo va completo (sin check = faltó); de uno guardado, solo lo que cambió.
- * Una celda vaciada va con status null (en un día nuevo, simplemente no se manda).
- */
+/** Cambios → días para guardar: solo las celdas que cambiaron. Una celda que quedó vacía va con status null (se quita). */
 export function toDays(sheet, changes) {
   return [...changedDates(changes)]
     .map((date) => {
-      const isNew = !sheet.days[date];
       const entries = sheet.students
-        .filter(({ id }) => (isNew ? changes[cellKey(date, id)]?.status !== EMPTY : cellKey(date, id) in changes))
-        .map(({ id }) =>
-          changes[cellKey(date, id)]?.status === EMPTY
-            ? { studentId: id, status: null }
-            : {
-                studentId: id,
-                status: statusOf(sheet, changes, date, id) ?? ABSENT,
-                note: noteOf(sheet, changes, date, id).trim() || null,
-              },
-        );
+        .filter(({ id }) => cellKey(date, id) in changes)
+        .map(({ id }) => {
+          const status = statusOf(sheet, changes, date, id);
+          return status
+            ? { studentId: id, status, note: noteOf(sheet, changes, date, id).trim() || null }
+            : { studentId: id, status: null };
+        });
       return { date, entries };
     })
     .filter((day) => day.entries.length);
